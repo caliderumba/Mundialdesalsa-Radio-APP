@@ -1,5 +1,5 @@
 {
   "name": "Mundial de Salsa Radio",
-  "description": "La emisora que manda en la salsa. Reproductor interactivo con diseño de disco, letras con IA, alarmas programables y notificaciones Push. ¡Instálala en tu Android!",
+  "description": "La Capital Mundial de la Salsa. Radio en vivo con metadatos en tiempo real, letras de canciones asistidas por IA, alarmas personalizadas y notificaciones push. Optimizada para instalación PWA en Android.",
   "requestFramePermissions": ["notifications"]
 }

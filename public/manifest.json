@@ -1,23 +1,53 @@
 {
-  "name": "Mundial de Salsa",
-  "short_name": "MundialSalsa",
-  "description": "La emisora que manda en la salsa. Música en vivo, alarmas y letras con IA.",
+  "name": "Mundial de Salsa Radio",
+  "short_name": "Mundial Salsa",
+  "description": "La Capital Mundial de la Salsa. Radio en vivo, letras de canciones, alarmas y modo fiesta.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#FF0000",
+  "background_color": "#09090b",
+  "theme_color": "#dd9933",
+  "orientation": "portrait",
+  "categories": ["music", "entertainment"],
   "icons": [
     {
       "src": "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp",
       "sizes": "192x192",
       "type": "image/webp",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "maskable"
     },
     {
       "src": "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp",
       "sizes": "512x512",
       "type": "image/webp",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://picsum.photos/seed/salsa1/1080/1920",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Mundial de Salsa Player"
+    },
+    {
+      "src": "https://picsum.photos/seed/salsa2/1920/1080",
+      "sizes": "1920x1080",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Mundial de Salsa Desktop"
     }
   ]
 }

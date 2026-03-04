@@ -16,7 +16,8 @@ import {
   Bell,
   Music,
   Zap,
-  Mic2
+  Mic2,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VinylRecord } from "./VinylRecord";
@@ -76,6 +77,8 @@ export function Player() {
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
@@ -98,6 +101,14 @@ export function Player() {
 
   // Push Notification Logic
   useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallButton(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
@@ -109,7 +120,23 @@ export function Player() {
         })
         .catch(err => console.error('Service Worker registration failed', err));
     }
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+    } else {
+      console.log('User dismissed the install prompt');
+    }
+    setDeferredPrompt(null);
+    setShowInstallButton(false);
+  };
 
   const subscribeToPush = async () => {
     try {
@@ -495,6 +522,17 @@ export function Player() {
           >
             <History size={20} />
           </button>
+          
+          {showInstallButton && (
+            <button 
+              onClick={handleInstallClick}
+              className="p-3 rounded-full bg-[#dd9933] text-white hover:bg-[#dd9933]/80 transition-all animate-bounce shadow-lg shadow-[#dd9933]/20"
+              title="Instalar Aplicación"
+            >
+              <Download size={20} />
+            </button>
+          )}
+
           <button 
             onClick={isSubscribed ? sendTestNotification : subscribeToPush}
             className={cn(
