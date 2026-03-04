@@ -64,7 +64,7 @@ export function VinylRecord({ isPlaying, coverUrl, className }: VinylRecordProps
       </motion.div>
 
       {/* Tonearm / Needle */}
-      <div className="absolute -top-10 -right-10 w-48 h-48 pointer-events-none hidden md:block z-20">
+      <div className="absolute -top-6 -right-6 w-32 h-32 md:-top-10 md:-right-10 md:w-48 md:h-48 pointer-events-none z-20">
         <motion.div
           animate={{ rotate: isPlaying ? 28 : -10 }}
           transition={{ duration: 0.8, ease: "easeInOut" }}
@@ -72,22 +72,22 @@ export function VinylRecord({ isPlaying, coverUrl, className }: VinylRecordProps
           style={{ transformOrigin: "80% 20%" }}
         >
           {/* Main Arm */}
-          <div className="absolute top-[20%] right-[20%] w-32 h-2 bg-zinc-300 rounded-full shadow-lg origin-right" 
+          <div className="absolute top-[20%] right-[20%] w-[70%] h-1 md:h-2 bg-zinc-300 rounded-full shadow-lg origin-right" 
                style={{ transform: 'rotate(-45deg)' }}>
             
             {/* Headshell (The part with the needle) */}
-            <div className="absolute -left-2 -top-2 w-10 h-6 bg-zinc-800 rounded-sm border border-zinc-600 flex items-center justify-center">
+            <div className="absolute -left-1 md:-left-2 -top-1 md:-top-2 w-6 h-4 md:w-10 md:h-6 bg-zinc-800 rounded-sm border border-zinc-600 flex items-center justify-center">
               {/* Stylus / Needle tip - High visibility color */}
-              <div className="w-1 h-4 bg-[#dd9933] rounded-full shadow-[0_0_8px_#dd9933]" />
+              <div className="w-0.5 h-2 md:w-1 md:h-4 bg-[#dd9933] rounded-full shadow-[0_0_8px_#dd9933]" />
             </div>
 
             {/* Counterweight */}
-            <div className="absolute -right-4 -top-2 w-8 h-6 bg-zinc-700 rounded-md border border-zinc-500" />
+            <div className="absolute -right-2 md:-right-4 -top-1 md:-top-2 w-5 h-4 md:w-8 md:h-6 bg-zinc-700 rounded-md border border-zinc-500" />
           </div>
 
           {/* Pivot Base */}
-          <div className="absolute top-[15%] right-[15%] w-12 h-12 bg-zinc-900 rounded-full border-4 border-zinc-800 shadow-2xl flex items-center justify-center">
-            <div className="w-4 h-4 bg-zinc-700 rounded-full border border-zinc-600" />
+          <div className="absolute top-[15%] right-[15%] w-8 h-8 md:w-12 md:h-12 bg-zinc-900 rounded-full border-2 md:border-4 border-zinc-800 shadow-2xl flex items-center justify-center">
+            <div className="w-2 h-2 md:w-4 md:h-4 bg-zinc-700 rounded-full border border-zinc-600" />
           </div>
         </motion.div>
       </div>
