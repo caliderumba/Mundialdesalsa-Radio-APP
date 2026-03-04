@@ -1,7 +1,7 @@
 {
   "name": "Mundial de Salsa Radio",
   "short_name": "Mundial Salsa",
-  "description": "La Capital Mundial de la Salsa. Radio en vivo, letras de canciones, alarmas y modo fiesta.",
+  "description": "Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",
@@ -10,25 +10,25 @@
   "categories": ["music", "entertainment"],
   "icons": [
     {
-      "src": "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp",
+      "src": "pwa-192x192.webp",
       "sizes": "192x192",
       "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp",
+      "src": "pwa-192x192.webp",
       "sizes": "192x192",
       "type": "image/webp",
       "purpose": "maskable"
     },
     {
-      "src": "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp",
+      "src": "pwa-512x512.webp",
       "sizes": "512x512",
       "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp",
+      "src": "pwa-512x512.webp",
       "sizes": "512x512",
       "type": "image/webp",
       "purpose": "maskable"
