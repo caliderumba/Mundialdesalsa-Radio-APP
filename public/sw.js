@@ -45,8 +45,8 @@ self.addEventListener('push', function(event) {
     const data = event.data.json();
     const options = {
       body: data.body,
-      icon: data.icon || 'https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp',
-      badge: data.badge || 'https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp',
+      icon: data.icon || 'https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp',
+      badge: data.badge || 'https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp',
       data: {
         url: data.url || '/'
       }

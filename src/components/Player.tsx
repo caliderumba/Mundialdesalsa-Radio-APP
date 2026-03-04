@@ -31,7 +31,7 @@ import { GoogleGenAI } from "@google/genai";
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
-const FALLBACK_COVER_URL = "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp";
+const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
 
 interface SongMetadata {
   id: string;
