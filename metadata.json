@@ -1,0 +1,5 @@
+{
+  "name": "Mundial de Salsa Radio",
+  "description": "Escucha la mejor salsa del mundo en vivo. Reproductor con diseño de disco giratorio, carátulas y metadatos en tiempo real.",
+  "requestFramePermissions": ["notifications"]
+}
