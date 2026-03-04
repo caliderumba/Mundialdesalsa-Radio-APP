@@ -1,0 +1,23 @@
+{
+  "name": "Mundial de Salsa",
+  "short_name": "MundialSalsa",
+  "description": "La emisora que manda en la salsa. Música en vivo, alarmas y letras con IA.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#FF0000",
+  "icons": [
+    {
+      "src": "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}

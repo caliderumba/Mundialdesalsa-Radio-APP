@@ -1,5 +1,5 @@
 {
   "name": "Mundial de Salsa Radio",
-  "description": "Escucha la mejor salsa del mundo en vivo. Reproductor con diseño de disco giratorio, carátulas y metadatos en tiempo real.",
+  "description": "La emisora que manda en la salsa. Reproductor interactivo con diseño de disco, letras con IA, alarmas programables y notificaciones Push. ¡Instálala en tu Android!",
   "requestFramePermissions": ["notifications"]
 }
