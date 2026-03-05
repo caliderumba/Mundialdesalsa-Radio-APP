@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['pwa-192x192.webp', 'pwa-512x512.webp'],
+        includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           name: 'Mundial de Salsa Radio',
           short_name: 'Mundial Salsa',
@@ -31,27 +31,27 @@ export default defineConfig(({ mode }) => {
           scope: './', 
           icons: [
             {
-              src: 'pwa-192x192.webp',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
-              type: 'image/webp',
+              type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'pwa-192x192.webp',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
-              type: 'image/webp',
+              type: 'image/png',
               purpose: 'maskable'
             },
             {
-              src: 'pwa-512x512.webp',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
-              type: 'image/webp',
+              type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'pwa-512x512.webp',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
-              type: 'image/webp',
+              type: 'image/png',
               purpose: 'maskable'
             }
           ]
