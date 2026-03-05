@@ -12,20 +12,24 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['pwa-192x192.webp', 'pwa-512x512.webp'],
         manifest: {
           name: 'Mundial de Salsa Radio',
           short_name: 'Mundial Salsa',
-          description: 'La Capital Mundial de la Salsa. Radio en vivo, letras de canciones, alarmas y modo fiesta.',
-          theme_color: '#dd9933', // El dorado de tu logo
-          background_color: '#09090b', // El fondo oscuro de tu app
+          description: 'Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.',
+          theme_color: '#dd9933',
+          background_color: '#09090b',
           display: 'standalone',
           orientation: 'portrait',
+          start_url: '/',
+          scope: '/',
           icons: [
             {
-              // Se recomienda usar rutas relativas si las descargas a la carpeta /public
               src: 'pwa-192x192.webp', 
               sizes: '192x192',
               type: 'image/webp',
@@ -51,12 +55,12 @@ export default defineConfig(({ mode }) => {
             }
           ]
         },
-        workbox: {
-          // Esto asegura que todo el contenido visual y funcional se guarde en el caché
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,json}'],
-          cleanupOutdatedCaches: true,
-          clientsClaim: true,
-          skipWaiting: true
+        injectManifest: {
+          injectionPoint: 'self.__WB_MANIFEST',
+        },
+        devOptions: {
+          enabled: true,
+          type: 'module',
         }
       })
     ],
