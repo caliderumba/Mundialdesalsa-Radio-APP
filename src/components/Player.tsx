@@ -78,8 +78,6 @@ export function Player() {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
-  
-  // Nuevo estado para la animación de vibración del disco
   const [isCencerroShaking, setIsCencerroShaking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -104,7 +102,22 @@ export function Player() {
       setShowInstallButton(true);
     };
 
+    // PASO 2: Detector de instalación exitosa
+    const handleAppInstalled = () => {
+      console.log('¡Sabor! Aplicación instalada con éxito por un nuevo oyente.');
+      setShowInstallButton(false);
+      setDeferredPrompt(null);
+      // Aquí podrías lanzar un confetti especial
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.6 },
+        colors: ['#dd9933', '#ffffff', '#000000']
+      });
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.ready.then(registration => {
@@ -116,6 +129,7 @@ export function Player() {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
@@ -123,7 +137,10 @@ export function Player() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setDeferredPrompt(null);
+    if (outcome === 'accepted') {
+      console.log('El usuario aceptó instalar MundialDeSalsa');
+    }
+    setDeferredPrompt(null);
     setShowInstallButton(false);
   };
 
@@ -199,17 +216,9 @@ export function Player() {
     if (cowbellRef.current) {
       cowbellRef.current.currentTime = 0;
       cowbellRef.current.play();
-      
-      // Activar vibración
       setIsCencerroShaking(true);
       setTimeout(() => setIsCencerroShaking(false), 300);
-
-      confetti({ 
-        particleCount: 40, 
-        spread: 70, 
-        origin: { y: 0.6 }, 
-        colors: ['#dd9933', '#ffffff', '#ff0000'] 
-      });
+      confetti({ particleCount: 40, spread: 70, origin: { y: 0.6 }, colors: ['#dd9933', '#ffffff'] });
     }
   };
 
@@ -221,7 +230,7 @@ export function Player() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6 space-y-8">
-      {/* Header Buttons */}
+      {/* Header */}
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
         <div className="flex items-center space-x-2">
           <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg">
@@ -237,12 +246,9 @@ export function Player() {
         </div>
       </div>
 
-      {/* Disco con animación de vibración */}
+      {/* Vinyl Section */}
       <motion.div
-        animate={isCencerroShaking ? { 
-          x: [0, -4, 4, -4, 4, 0], 
-          rotate: [0, -1, 1, -1, 1, 0] 
-        } : {}}
+        animate={isCencerroShaking ? { x: [0, -4, 4, -4, 4, 0], rotate: [0, -1, 1, -1, 1, 0] } : {}}
         transition={{ duration: 0.2 }}
         className="z-10"
       >
@@ -258,52 +264,17 @@ export function Player() {
         <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm">{metadata.artist}</p>
       </div>
 
+      {/* Controls */}
       <div className="flex items-center gap-6 z-10">
-        <button 
-          onClick={() => setIsFiestaMode(!isFiestaMode)} 
-          className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-[0_0_20px_rgba(221,153,51,0.4)]" : "bg-zinc-900")}
-        >
-          <Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} />
-        </button>
-        
-        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform">
-          {isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}
-        </button>
-        
-        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors">
-          <Mic2 size={24} />
-        </button>
+        <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-[0_0_20px_rgba(221,153,51,0.4)]" : "bg-zinc-900")}><Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} /></button>
+        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform">{isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}</button>
+        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900"><Mic2 size={24} /></button>
       </div>
 
-      {/* AUDIO ELEMENTS CORREGIDOS */}
       <audio ref={audioRef} src={STREAM_URL} crossOrigin="anonymous" />
       <audio ref={cowbellRef} src="./sounds/cowbell.ogg" crossOrigin="anonymous" />
 
-      {/* Modal Historial */}
-      <AnimatePresence>
-        {showHistory && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
-          >
-            <div className="bg-zinc-900 p-6 rounded-3xl w-full max-w-lg border border-white/10">
-               <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-xl font-bold flex items-center gap-2"><History className="text-[#dd9933]"/> Historial</h3>
-                 <button onClick={() => setShowHistory(false)}><X /></button>
-               </div>
-               <div className="max-h-60 overflow-y-auto space-y-2">
-                 {history.map(s => (
-                   <div key={s.id} className="p-3 bg-white/5 rounded-xl text-sm flex justify-between items-center">
-                     <span>{s.title} - {s.artist}</span>
-                     <span className="text-zinc-500 text-[10px]">{format(s.timestamp, "HH:mm")}</span>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
+      {/* Footer */}
       <div className="pt-4 z-10">
         <button onClick={handleShare} className="text-[#dd9933] text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">
           {copied ? "¡ENLACE COPIADO!" : "COMPARTIR RADIO"}
