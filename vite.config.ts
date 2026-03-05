@@ -8,13 +8,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
   return {
+    // IMPORTANTE: Esta línea permite que los archivos se encuentren en GitHub Pages
+    base: '/Mundialdesalsa-Radio-APP/', 
+    
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
-        strategies: 'injectManifest',
-        srcDir: 'src',
-        filename: 'sw.ts',
+        // Volvemos a la configuración automática (genera el Service Worker solo)
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         includeAssets: ['pwa-192x192.webp', 'pwa-512x512.webp'],
@@ -26,11 +27,12 @@ export default defineConfig(({ mode }) => {
           background_color: '#09090b',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
+          // Ajustamos las rutas para que coincidan con la subcarpeta de GitHub
+          start_url: '/Mundialdesalsa-Radio-APP/',
+          scope: '/Mundialdesalsa-Radio-APP/',
           icons: [
             {
-              src: 'pwa-192x192.webp', 
+              src: 'pwa-192x192.webp',
               sizes: '192x192',
               type: 'image/webp',
               purpose: 'any'
@@ -55,12 +57,12 @@ export default defineConfig(({ mode }) => {
             }
           ]
         },
-        injectManifest: {
-          injectionPoint: 'self.__WB_MANIFEST',
-        },
-        devOptions: {
-          enabled: true,
-          type: 'module',
+        workbox: {
+          // Estrategia de caché automática para que la radio cargue rápido
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,json}'],
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true
         }
       })
     ],
