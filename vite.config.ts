@@ -8,14 +8,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
   return {
-    // IMPORTANTE: Esta línea permite que los archivos se encuentren en GitHub Pages
+    // IMPORTANTE: Define la subcarpeta para todos los recursos del proyecto
     base: '/Mundialdesalsa-Radio-APP/', 
     
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
-        // Volvemos a la configuración automática (genera el Service Worker solo)
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         includeAssets: ['pwa-192x192.webp', 'pwa-512x512.webp'],
@@ -27,9 +26,9 @@ export default defineConfig(({ mode }) => {
           background_color: '#09090b',
           display: 'standalone',
           orientation: 'portrait',
-          // Ajustamos las rutas para que coincidan con la subcarpeta de GitHub
-          start_url: '/Mundialdesalsa-Radio-APP/',
-          scope: '/Mundialdesalsa-Radio-APP/',
+          // Asegura que al abrir la PWA se use la ruta correcta
+          start_url: './', 
+          scope: './', 
           icons: [
             {
               src: 'pwa-192x192.webp',
@@ -58,11 +57,12 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          // Estrategia de caché automática para que la radio cargue rápido
+          // Soluciona el error 404 al registrar el Service Worker en la subcarpeta
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,json}'],
           cleanupOutdatedCaches: true,
           clientsClaim: true,
-          skipWaiting: true
+          skipWaiting: true,
+          navigateFallback: 'index.html'
         }
       })
     ],
@@ -75,7 +75,6 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      // Mantiene compatibilidad con AI Studio
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };
