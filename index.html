@@ -6,34 +6,88 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
-      gtag('config', 'G-RRYHESGWKF', {
-        page_path: window.location.pathname,
-      });
+      gtag('config', 'G-RRYHESGWKF', { page_path: window.location.pathname });
     </script>
 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>MundialDeSalsa.Com - La Capital Mundial De La Salsa</title>
     
+    <meta name="theme-color" content="#09090b" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#dd9933" />
 
     <meta name="application-name" content="MundialDeSalsa" />
     <meta name="msapplication-TileColor" content="#09090b" />
     <meta name="msapplication-TileImage" content="./pwa-192x192.png" />
-    <meta name="msapplication-tooltip" content="Escucha la mejor salsa desde Cali" />
 
     <link rel="manifest" href="./manifest.webmanifest" />
-
     <link rel="icon" type="image/png" href="./pwa-192x192.png" />
     <link rel="apple-touch-icon" href="./pwa-192x192.png" />
 
-    <meta name="description" content="Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali." />
+    <style>
+      /* Estilos del Splash Screen */
+      #splash-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #09090b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        transition: opacity 0.5s ease-out, visibility 0.5s;
+      }
+
+      .splash-logo {
+        width: 120px;
+        height: 120px;
+        filter: drop-shadow(0 0 15px rgba(221, 153, 51, 0.4));
+        animation: pulse-salsa 1.5s infinite ease-in-out;
+      }
+
+      @keyframes pulse-salsa {
+        0%, 100% { transform: scale(1); opacity: 0.8; }
+        50% { transform: scale(1.1); opacity: 1; }
+      }
+
+      .splash-text {
+        margin-top: 20px;
+        color: #dd9933;
+        font-family: sans-serif;
+        font-size: 12px;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        font-weight: bold;
+      }
+
+      /* Clase para ocultarlo */
+      .hidden-splash {
+        opacity: 0;
+        visibility: hidden;
+      }
+    </style>
   </head>
   <body>
+    <div id="splash-screen">
+      <img src="./pwa-192x192.png" alt="MundialDeSalsa" class="splash-logo">
+      <div class="splash-text">Mundial de Salsa</div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      // Quitar el splash cuando la App cargue
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var splash = document.getElementById('splash-screen');
+          splash.classList.add('hidden-splash');
+        }, 1500); // Se muestra por 1.5 segundos para dar impacto
+      });
+    </script>
   </body>
 </html>
