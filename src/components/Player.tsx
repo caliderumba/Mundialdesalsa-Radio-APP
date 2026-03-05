@@ -33,7 +33,7 @@ const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
-const VAPID_KEY = "TU_VAPID_KEY_AQUI"; // REEMPLAZA ESTO CON TU KEY DE FIREBASE
+const VAPID_KEY = "Jvy3_aME5bSwZUxwlbmP1M4KjGXfczz8ed0ZdZYla1o"; // REEMPLAZA ESTO CON TU KEY DE FIREBASE
 
 interface SongMetadata {
   id: string;
