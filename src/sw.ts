@@ -31,8 +31,8 @@ self.addEventListener('push', (event) => {
       const data = event.data.json();
       const options = {
         body: data.body,
-        icon: data.icon || '/pwa-192x192.webp',
-        badge: data.badge || '/pwa-192x192.webp',
+        icon: data.icon || '/pwa-192x192.png',
+        badge: data.badge || '/pwa-192x192.png',
         data: {
           url: data.url || '/'
         }
