@@ -78,6 +78,9 @@ export function Player() {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
+  
+  // Nuevo estado para la animación de vibración del disco
+  const [isCencerroShaking, setIsCencerroShaking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
@@ -103,7 +106,6 @@ export function Player() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Simplificamos el registro: ya no buscamos '/sw.js' manual que daba 404
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.ready.then(registration => {
         registration.pushManager.getSubscription().then(subscription => {
@@ -123,28 +125,6 @@ export function Player() {
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') setDeferredPrompt(null);
     setShowInstallButton(false);
-  };
-
-  const subscribeToPush = async () => {
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') return;
-      const registration = await navigator.serviceWorker.ready;
-      const response = await fetch('/api/vapid-public-key');
-      const { publicKey } = await response.json();
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: publicKey
-      });
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription)
-      });
-      setIsSubscribed(true);
-    } catch (err) {
-      console.error('Failed to subscribe', err);
-    }
   };
 
   const fetchMetadata = async (title: string, artist: string) => {
@@ -203,16 +183,6 @@ export function Player() {
     return () => clearInterval(alarmInterval);
   }, [alarms, isPlaying]);
 
-  useEffect(() => {
-    if ("mediaSession" in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: metadata.title,
-        artist: metadata.artist,
-        artwork: [{ src: metadata.coverUrl, sizes: "512x512", type: "image/png" }]
-      });
-    }
-  }, [metadata]);
-
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -229,19 +199,29 @@ export function Player() {
     if (cowbellRef.current) {
       cowbellRef.current.currentTime = 0;
       cowbellRef.current.play();
-      confetti({ particleCount: 40, spread: 70, origin: { y: 0.6 }, colors: ['#dd9933', '#ffffff'] });
+      
+      // Activar vibración
+      setIsCencerroShaking(true);
+      setTimeout(() => setIsCencerroShaking(false), 300);
+
+      confetti({ 
+        particleCount: 40, 
+        spread: 70, 
+        origin: { y: 0.6 }, 
+        colors: ['#dd9933', '#ffffff', '#ff0000'] 
+      });
     }
   };
 
   const handleShare = async () => {
     const data = { title: "Mundial de Salsa Radio", text: `Escuchando ${metadata.title}`, url: window.location.href };
-    if (navigator.share) await navigator.share(data);
+    if (navigator.share) await navigator.share(data).catch(() => {});
     else { navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6 space-y-8">
-      {/* Botones de Cabecera */}
+      {/* Header Buttons */}
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
         <div className="flex items-center space-x-2">
           <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg">
@@ -257,44 +237,78 @@ export function Player() {
         </div>
       </div>
 
-      <VinylRecord isPlaying={isPlaying} coverUrl={metadata.coverUrl} />
-      <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
+      {/* Disco con animación de vibración */}
+      <motion.div
+        animate={isCencerroShaking ? { 
+          x: [0, -4, 4, -4, 4, 0], 
+          rotate: [0, -1, 1, -1, 1, 0] 
+        } : {}}
+        transition={{ duration: 0.2 }}
+        className="z-10"
+      >
+        <VinylRecord isPlaying={isPlaying} coverUrl={metadata.coverUrl} />
+      </motion.div>
+
+      <div className="w-full max-w-xs h-20 flex items-end justify-center z-10">
+        <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
+      </div>
 
       <div className="text-center z-10 max-w-xs">
-        <h2 className="text-2xl font-black uppercase">{metadata.title}</h2>
-        <p className="text-[#dd9933] font-bold uppercase tracking-widest">{metadata.artist}</p>
+        <h2 className="text-2xl font-black uppercase tracking-tight">{metadata.title}</h2>
+        <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm">{metadata.artist}</p>
       </div>
 
       <div className="flex items-center gap-6 z-10">
-        <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl", isFiestaMode ? "bg-[#dd9933]" : "bg-zinc-900")}><Zap size={24} /></button>
-        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl">
+        <button 
+          onClick={() => setIsFiestaMode(!isFiestaMode)} 
+          className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-[0_0_20px_rgba(221,153,51,0.4)]" : "bg-zinc-900")}
+        >
+          <Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} />
+        </button>
+        
+        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform">
           {isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}
         </button>
-        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900"><Mic2 size={24} /></button>
+        
+        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors">
+          <Mic2 size={24} />
+        </button>
       </div>
 
-      {/* ELEMENTOS DE AUDIO CORREGIDOS */}
+      {/* AUDIO ELEMENTS CORREGIDOS */}
       <audio ref={audioRef} src={STREAM_URL} crossOrigin="anonymous" />
-      
-      {/* Corregido: La ruta ahora es solo el string de la ubicación del archivo */}
       <audio ref={cowbellRef} src="./sounds/cowbell.ogg" crossOrigin="anonymous" />
 
-      {/* Modales de Historial y Alarmas (Simplificados para el ejemplo) */}
+      {/* Modal Historial */}
       <AnimatePresence>
         {showHistory && (
-          <motion.div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+          >
             <div className="bg-zinc-900 p-6 rounded-3xl w-full max-w-lg border border-white/10">
                <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-xl font-bold">Historial</h3>
+                 <h3 className="text-xl font-bold flex items-center gap-2"><History className="text-[#dd9933]"/> Historial</h3>
                  <button onClick={() => setShowHistory(false)}><X /></button>
                </div>
-               <div className="max-h-60 overflow-y-auto">
-                 {history.map(s => <div key={s.id} className="p-2 border-b border-white/5">{s.title} - {s.artist}</div>)}
+               <div className="max-h-60 overflow-y-auto space-y-2">
+                 {history.map(s => (
+                   <div key={s.id} className="p-3 bg-white/5 rounded-xl text-sm flex justify-between items-center">
+                     <span>{s.title} - {s.artist}</span>
+                     <span className="text-zinc-500 text-[10px]">{format(s.timestamp, "HH:mm")}</span>
+                   </div>
+                 ))}
                </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+      
+      <div className="pt-4 z-10">
+        <button onClick={handleShare} className="text-[#dd9933] text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">
+          {copied ? "¡ENLACE COPIADO!" : "COMPARTIR RADIO"}
+        </button>
+      </div>
     </div>
   );
 }
