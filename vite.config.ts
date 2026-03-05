@@ -17,7 +17,6 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        // Cambiamos a PNG para evitar errores de "recurso no válido" en el navegador
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
           name: 'MundialDeSalsa.Com - La Radio',
@@ -26,8 +25,10 @@ export default defineConfig(({ mode }) => {
           theme_color: '#dd9933',
           background_color: '#09090b',
           display: 'standalone',
+          // AJUSTE WINDOWS: Permite una integración más limpia con la ventana de escritorio
+          display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'portrait',
-          // PASO 1: Agregamos parámetros UTM para rastrear instalaciones en Google Analytics
+          categories: ['entertainment', 'music'],
           start_url: './?utm_source=pwa&utm_medium=install&utm_campaign=app_salsa', 
           scope: './', 
           icons: [
@@ -58,12 +59,10 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          // Soluciona el error 404 al registrar el Service Worker en la subcarpeta
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,json}'],
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
-          // Asegura que las rutas internas carguen el index.html en GitHub Pages
           navigateFallback: 'index.html'
         }
       })
