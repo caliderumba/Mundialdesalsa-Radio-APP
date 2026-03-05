@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
           name: 'Mundial de Salsa Radio',
-          short_name: 'Mundial Salsa',
+          short_name: 'MundialDeSalsa',
           description: 'Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.',
           theme_color: '#dd9933',
           background_color: '#09090b',
