@@ -22,10 +22,9 @@ export default defineConfig(({ mode }) => {
           name: 'MundialDeSalsa.Com - La Radio',
           short_name: 'MundialDeSalsa',
           description: 'Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.',
-          theme_color: '#dd9933',
-          background_color: '#09090b',
+          theme_color: '#dd9933', // Dorado para la barra de Windows/Android
+          background_color: '#09090b', // Negro para que el Splash Screen no parpadee en blanco
           display: 'standalone',
-          // AJUSTE WINDOWS: Permite una integración más limpia con la ventana de escritorio
           display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'portrait',
           categories: ['entertainment', 'music'],
