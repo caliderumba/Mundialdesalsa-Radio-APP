@@ -1,13 +1,16 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register'; // Importa el registrador de PWA
+import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
 
-// Registra el Service Worker para que la App funcione offline y sea instalable
-// 'immediate: true' asegura que la App se registre en cuanto cargue el navegador
+// Registra el Service Worker forzando el alcance (scope) a la subcarpeta del repositorio
 const updateSW = registerSW({
   immediate: true,
+  // Esta configuración asegura que el registro use la ruta relativa correcta en GitHub Pages
+  onRegisteredSW(swScriptUrl, registration) {
+    console.log('Service Worker registrado con éxito en:', swScriptUrl);
+  },
   onNeedRefresh() {
     if (confirm('Hay una nueva versión de la Radio disponible. ¿Deseas actualizar?')) {
       updateSW(true);
