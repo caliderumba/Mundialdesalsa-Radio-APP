@@ -745,7 +745,7 @@ export function Player() {
       />
       <audio
         ref={cowbellRef}
-        src="https://actions.google.com/sounds/v1/percussion/cowbell.ogg"
+        src="const cowbellSound = new Audio('./sounds/cowbell.ogg');"
         crossOrigin="anonymous"
       />
 
