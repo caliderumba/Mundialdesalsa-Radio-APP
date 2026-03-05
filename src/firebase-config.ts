@@ -1,14 +1,14 @@
- import { initializeApp } from "firebase/app";
+import { initializeApp } from "firebase/app";
 import { getMessaging } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "tu-proyecto.firebaseapp.com",
-  projectId: "tu-proyecto",
-  storageBucket: "tu-proyecto.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID",
-  measurementId: "G-RRYHESGWKF" // Tu ID de Analytics que ya tenemos
+  apiKey: "AIzaSyCs4qj1eCjnTOzqOALWK2BnnA5z4dsT9cw",
+  authDomain: "mundial-de-salsa-f008c.firebaseapp.com",
+  projectId: "mundial-de-salsa-f008c",
+  storageBucket: "mundial-de-salsa-f008c.firebasestorage.app",
+  messagingSenderId: "793052992987",
+  appId: "1:793052992987:web:be19e1f21e084a102e43fe",
+  measurementId: "G-21GH0LV5D4"
 };
 
 const app = initializeApp(firebaseConfig);
