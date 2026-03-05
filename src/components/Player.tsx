@@ -2,21 +2,12 @@ import React, { useState, useRef, useEffect } from "react";
 import { 
   Play, 
   Pause, 
-  Share2, 
-  Facebook, 
-  Instagram, 
-  Twitter, 
-  Volume2, 
-  VolumeX, 
   History, 
   AlarmClock, 
-  X, 
-  Plus, 
-  Trash2, 
   Bell,
-  Music,
   Zap,
   Mic2,
+  MonitorSmartphone, // Icono para la App de Windows/Móvil
   Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -25,9 +16,8 @@ import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import { format } from "date-fns";
 import confetti from "canvas-confetti";
-import { GoogleGenAI } from "@google/genai";
 
-// Declaración para que TypeScript no se queje de Google Analytics
+// Declaración para que TypeScript reconozca Google Analytics
 declare global {
   interface Window {
     gtag: (...args: any[]) => void;
@@ -57,8 +47,6 @@ interface Alarm {
 
 export function Player() {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [metadata, setMetadata] = useState<SongMetadata>({
     id: "1",
     title: "Mundial de Salsa",
@@ -74,15 +62,11 @@ export function Player() {
   });
   const [showHistory, setShowHistory] = useState(false);
   const [showAlarms, setShowAlarms] = useState(false);
-  const [newAlarmTime, setNewAlarmTime] = useState("08:00");
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [isFiestaMode, setIsFiestaMode] = useState(false);
-  const [showLyrics, setShowLyrics] = useState(false);
-  const [lyrics, setLyrics] = useState<string>("");
-  const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  
+  // Estados para la instalación
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [isCencerroShaking, setIsCencerroShaking] = useState(false);
@@ -103,16 +87,23 @@ export function Player() {
   };
 
   useEffect(() => {
+    // Escuchar el evento de instalación
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallButton(true);
+      
+      // RASTREO: El navegador ofreció la App
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'pwa_offer_view', { 'event_category': 'PWA' });
+      }
     };
 
-    // Detector de instalación exitosa reportando a Google Analytics
     const handleAppInstalled = () => {
-      console.log('¡Sabor! Aplicación instalada.');
+      setShowInstallButton(false);
+      setDeferredPrompt(null);
       
+      // RASTREO: Instalación exitosa
       if (typeof window.gtag === 'function') {
         window.gtag('event', 'pwa_install_success', {
           'event_category': 'PWA',
@@ -120,8 +111,6 @@ export function Player() {
         });
       }
 
-      setShowInstallButton(false);
-      setDeferredPrompt(null);
       confetti({
         particleCount: 150,
         spread: 100,
@@ -133,12 +122,6 @@ export function Player() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(registration => {
-        console.log('SW Ready para Google Analytics');
-      });
-    }
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
@@ -148,16 +131,14 @@ export function Player() {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     
-    // Tracking de clic en botón instalar
+    // RASTREO: Clic en el botón de instalar
     if (typeof window.gtag === 'function') {
-      window.gtag('event', 'install_button_click', {
-        'event_category': 'PWA'
-      });
+      window.gtag('event', 'install_btn_click', { 'event_category': 'PWA' });
     }
 
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to install prompt: ${outcome}`);
+    console.log(`User response to install: ${outcome}`);
     setDeferredPrompt(null);
     setShowInstallButton(false);
   };
@@ -171,11 +152,11 @@ export function Player() {
       audioRef.current.load();
       audioRef.current.play();
       
-      // Tracking de Play
+      // RASTREO: Play en la radio
       if (typeof window.gtag === 'function') {
         window.gtag('event', 'play_radio', {
           'event_category': 'Player',
-          'song_title': metadata.title
+          'song': metadata.title
         });
       }
     }
@@ -187,11 +168,9 @@ export function Player() {
       cowbellRef.current.currentTime = 0;
       cowbellRef.current.play();
       
-      // Tracking de Cencerro (Sabor)
+      // RASTREO: Uso del cencerro
       if (typeof window.gtag === 'function') {
-        window.gtag('event', 'cowbell_click', {
-          'event_category': 'Interaction'
-        });
+        window.gtag('event', 'cowbell_hit', { 'event_category': 'Interaction' });
       }
 
       setIsCencerroShaking(true);
@@ -200,30 +179,42 @@ export function Player() {
     }
   };
 
-  // ... (Resto del código de metadata, history y modals que ya tenías) ...
+  // ... (Sigue el resto de la lógica de metadata y renderizado)
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6 space-y-8">
-      {/* Header */}
+      {/* Header con Botón de Instalación y Rastreos */}
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
         <div className="flex items-center space-x-2">
           <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg">
             <Bell className="text-white w-6 h-6" />
           </div>
         </div>
-        <div className="flex items-center space-x-4">
-          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900"><AlarmClock size={20} /></button>
-          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900"><History size={20} /></button>
-          {showInstallButton && (
-            <button onClick={handleInstallClick} className="p-3 rounded-full bg-[#dd9933] animate-bounce"><Download size={20} /></button>
-          )}
+        
+        <div className="flex items-center space-x-3">
+          <AnimatePresence>
+            {showInstallButton && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={handleInstallClick}
+                className="flex items-center gap-2 bg-[#dd9933] text-black px-4 py-2 rounded-full font-bold text-[10px] shadow-xl active:scale-95 transition-transform"
+              >
+                <MonitorSmartphone size={14} />
+                <span>INSTALAR APP</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5"><AlarmClock size={20} /></button>
+          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5"><History size={20} /></button>
         </div>
       </div>
 
-      {/* Disco */}
+      {/* Cuerpo del reproductor (Vinyl, Visualizer, etc.) */}
       <motion.div
-        animate={isCencerroShaking ? { x: [0, -4, 4, -4, 4, 0], rotate: [0, -1, 1, -1, 1, 0] } : {}}
-        transition={{ duration: 0.2 }}
+        animate={isCencerroShaking ? { x: [0, -4, 4, -4, 4, 0] } : {}}
         className="z-10"
       >
         <VinylRecord isPlaying={isPlaying} coverUrl={metadata.coverUrl} />
@@ -233,13 +224,13 @@ export function Player() {
         <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
       </div>
 
-      <div className="text-center z-10 max-w-xs">
-        <h2 className="text-2xl font-black uppercase tracking-tight">{metadata.title}</h2>
+      <div className="text-center z-10">
+        <h2 className="text-2xl font-black uppercase">{metadata.title}</h2>
         <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm">{metadata.artist}</p>
       </div>
 
       <div className="flex items-center gap-6 z-10">
-        <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933]" : "bg-zinc-900")}><Zap size={24} /></button>
+        <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl", isFiestaMode ? "bg-[#dd9933]" : "bg-zinc-900")}><Zap size={24} /></button>
         <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl">{isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}</button>
         <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900"><Mic2 size={24} /></button>
       </div>
