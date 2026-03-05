@@ -7,18 +7,18 @@ firebase.initializeApp({
   projectId: "mundial-de-salsa-f008c",
   storageBucket: "mundial-de-salsa-f008c.firebasestorage.app",
   messagingSenderId: "793052992987",
-  appId: "1:793052992987:web:be19e1f21e084a102e43fe",
-  measurementId: "G-21GH0LV5D4",
+  appId: "1:793052992987:web:be19e1f21e084a102e43fe"
 });
 
 const messaging = firebase.messaging();
 
-// Esto maneja la notificación cuando la App está en segundo plano
+// Manejo de notificaciones en segundo plano
 messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: '/Mundialdesalsa-Radio-APP/pwa-192x192.png'
+    icon: '/Mundialdesalsa-Radio-APP/pwa-192x192.png',
+    badge: '/Mundialdesalsa-Radio-APP/pwa-192x192.png'
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
