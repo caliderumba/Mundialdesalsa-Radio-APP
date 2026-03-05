@@ -17,7 +17,8 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
+        // Cambiamos a PNG para evitar errores de "recurso no válido" en el navegador
+        includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
           name: 'Mundial de Salsa Radio',
           short_name: 'Mundial Salsa',
@@ -26,7 +27,7 @@ export default defineConfig(({ mode }) => {
           background_color: '#09090b',
           display: 'standalone',
           orientation: 'portrait',
-          // Asegura que al abrir la PWA se use la ruta correcta
+          // Asegura que al abrir la PWA se use la ruta del repositorio
           start_url: './', 
           scope: './', 
           icons: [
@@ -62,6 +63,7 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
+          // Asegura que las rutas internas carguen el index.html en GitHub Pages
           navigateFallback: 'index.html'
         }
       })
