@@ -8,7 +8,7 @@ firebase.initializeApp({
   storageBucket: "mundial-de-salsa-f008c.firebasestorage.app",
   messagingSenderId: "793052992987",
   appId: "1:793052992987:web:be19e1f21e084a102e43fe",
-  measurementId: "G-21GH0LV5D4"
+  measurementId: "G-21GH0LV5D4",
 });
 
 const messaging = firebase.messaging();
