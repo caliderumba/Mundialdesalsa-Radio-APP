@@ -1,1 +1,6 @@
-
+{
+  "compilerOptions": {
+    // ... tus opciones actuales
+  },
+  "exclude": ["node_modules", "public", "dist"]
+}
