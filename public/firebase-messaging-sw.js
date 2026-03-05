@@ -2,10 +2,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "TU_API_KEY",
-  projectId: "tu-proyecto",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID",
+  apiKey: "AIzaSyCs4qj1eCjnTOzqOALWK2BnnA5z4dsT9cw",
+  authDomain: "mundial-de-salsa-f008c.firebaseapp.com",
+  projectId: "mundial-de-salsa-f008c",
+  storageBucket: "mundial-de-salsa-f008c.firebasestorage.app",
+  messagingSenderId: "793052992987",
+  appId: "1:793052992987:web:be19e1f21e084a102e43fe",
+  measurementId: "G-21GH0LV5D4"
 });
 
 const messaging = firebase.messaging();
