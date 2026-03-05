@@ -20,15 +20,15 @@ export default defineConfig(({ mode }) => {
         // Cambiamos a PNG para evitar errores de "recurso no válido" en el navegador
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
-          name: 'Mundial de Salsa Radio',
+          name: 'MundialDeSalsa.Com - La Radio',
           short_name: 'MundialDeSalsa',
           description: 'Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.',
           theme_color: '#dd9933',
           background_color: '#09090b',
           display: 'standalone',
           orientation: 'portrait',
-          // Asegura que al abrir la PWA se use la ruta del repositorio
-          start_url: './', 
+          // PASO 1: Agregamos parámetros UTM para rastrear instalaciones en Google Analytics
+          start_url: './?utm_source=pwa&utm_medium=install&utm_campaign=app_salsa', 
           scope: './', 
           icons: [
             {
