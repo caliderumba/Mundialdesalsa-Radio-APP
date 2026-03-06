@@ -9,36 +9,26 @@ import { VinylRecord } from "./VinylRecord";
 import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import confetti from "canvas-confetti";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Firebase Imports
+// CAMBIO CRÍTICO: Usamos el paquete que YA tienes en tu package.json
+import { GoogleGenerativeAI } from "@google/genai";
+
+// Firebase
 import { messaging } from "../firebase-config"; 
 import { getToken } from "firebase/messaging";
 
-// Constants
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
-const VAPID_KEY = "BB96feZebT300xmBryJSxCpA2ecbPGhBOdZYslyqOQLdIScS4V_80TLi4O9lYBMvcYTg59yhCXCJB6AlpzAzhTA";
 
-// Acceso ultra-seguro a la API Key para evitar errores en GitHub Actions
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+// API Key con prefijo VITE para que sea visible en el cliente
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 interface SongMetadata {
-  id: string;
-  title: string;
-  artist: string;
-  coverUrl: string;
-  timestamp: number;
+  id: string; title: string; artist: string; coverUrl: string; timestamp: number;
 }
-
-interface Alarm {
-  id: string;
-  time: string;
-  enabled: boolean;
-}
+interface Alarm { id: string; time: string; enabled: boolean; }
 
 export function Player() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -51,18 +41,18 @@ export function Player() {
   });
   
   const [history, setHistory] = useState<SongMetadata[]>(() => {
-    if (typeof window === "undefined") return [];
+    if (typeof window === 'undefined') return [];
     const saved = localStorage.getItem("radio_history");
     return saved ? JSON.parse(saved) : [];
   });
 
   const [alarms, setAlarms] = useState<Alarm[]>(() => {
-    if (typeof window === "undefined") return [];
+    if (typeof window === 'undefined') return [];
     const saved = localStorage.getItem("radio_alarms");
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [lyrics, setLyrics] = useState<string>("");
+  const [lyrics, setLyrics] = useState("");
   const [loadingLyrics, setLoadingLyrics] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAlarms, setShowAlarms] = useState(false);
@@ -75,21 +65,7 @@ export function Player() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  const initAudioContext = () => {
-    if (audioContext || !audioRef.current) return;
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const context = new AudioCtx();
-      const src = context.createMediaElementSource(audioRef.current);
-      const analyserNode = context.createAnalyser();
-      src.connect(analyserNode);
-      analyserNode.connect(context.destination);
-      analyserNode.fftSize = 256;
-      setAudioContext(context);
-      setAnalyser(analyserNode);
-    } catch (e) { console.error("Web Audio API no soportada"); }
-  };
-
+  // --- LÓGICA DE LETRAS MEJORADA ---
   const fetchLyrics = async (artist: string, title: string) => {
     if (!title || title === "Mundial de Salsa") return;
     setLoadingLyrics(true);
@@ -100,20 +76,21 @@ export function Player() {
       if (data.lyrics) { setLyrics(data.lyrics); setLoadingLyrics(false); return; }
       throw new Error();
     } catch (err) {
-      if (genAI) {
+      if (GEMINI_KEY) {
         try {
+          const genAI = new GoogleGenerativeAI(GEMINI_KEY);
           const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-          const prompt = `Proporciona la letra de la canción de salsa "${title}" del artista "${artist}". Devuelve solo la letra.`;
+          const prompt = `Proporciona la letra de la canción "${title}" de "${artist}". Solo la letra, sin comentarios.`;
           const result = await model.generateContent(prompt);
-          setLyrics(result.response.text() || "Letra no disponible.");
-        } catch (e) { setLyrics("Error al cargar letras con IA."); }
-      } else { setLyrics("Servidor de letras fuera de servicio."); }
+          setLyrics(result.response.text());
+        } catch (e) { setLyrics("Letra no disponible en este momento."); }
+      } else { setLyrics("Buscando el pregón..."); }
     } finally { setLoadingLyrics(false); }
   };
 
   useEffect(() => {
     if (showLyrics) fetchLyrics(metadata.artist, metadata.title);
-  }, [showLyrics, metadata.title, metadata.artist]);
+  }, [showLyrics, metadata.title]);
 
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
@@ -121,32 +98,24 @@ export function Player() {
       try {
         const raw = JSON.parse(event.data);
         const [artista = "Mundial de Salsa", cancion = "En Vivo"] = (raw.streamTitle || "").split(" - ");
-        if (cancion.trim() !== metadata.title) updateTrack(artista.trim(), cancion.trim());
-      } catch (err) { console.error("Error metadata"); }
+        if (cancion.trim() !== metadata.title) {
+          let cover = FALLBACK_COVER_URL;
+          try {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
+            const data = await res.json();
+            const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
+            if (imgUrl) cover = imgUrl;
+          } catch (e) {}
+          const newSong = { id: Date.now().toString(), title: cancion.trim(), artist: artista.trim(), coverUrl: cover, timestamp: Date.now() };
+          setMetadata(newSong);
+          setHistory(prev => {
+            const updated = [newSong, ...prev].slice(0, 15);
+            localStorage.setItem("radio_history", JSON.stringify(updated));
+            return updated;
+          });
+        }
+      } catch (err) {}
     };
-
-    async function updateTrack(artista: string, cancion: string) {
-      let cover = FALLBACK_COVER_URL;
-      try {
-        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
-        const data = await res.json();
-        const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
-        if (imgUrl) cover = imgUrl;
-      } catch (e) {}
-      const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
-      setMetadata(newSong);
-      setHistory(prev => {
-        const updated = [newSong, ...prev].slice(0, 15);
-        localStorage.setItem("radio_history", JSON.stringify(updated));
-        return updated;
-      });
-      if ('mediaSession' in navigator && (window as any).MediaMetadata) {
-        navigator.mediaSession.metadata = new (window as any).MediaMetadata({
-          title: cancion, artist: artista, album: 'Mundial de Salsa Radio',
-          artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
-        });
-      }
-    }
     return () => eventSource.close();
   }, [metadata.title]);
 
@@ -166,24 +135,21 @@ export function Player() {
     }
   }, [volume, isMuted]);
 
-  const handleToggleMute = () => {
-    if (isMuted) { setIsMuted(false); setVolume(prevVolume); }
-    else { setPrevVolume(volume); setIsMuted(true); setVolume(0); }
-  };
-
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) audioRef.current.pause();
-    else { initAudioContext(); audioRef.current.play().catch(() => {}); }
-    setIsPlaying(!isPlaying);
-  };
-
-  const playSabor = () => {
-    if (cowbellRef.current) {
-      cowbellRef.current.currentTime = 0; cowbellRef.current.play();
-      setIsCencerroShaking(true); setTimeout(() => setIsCencerroShaking(false), 300);
-      confetti({ particleCount: 40, spread: 70, origin: { y: 0.6 }, colors: ['#dd9933', '#ffffff'] });
+    else { 
+      if (!audioContext) {
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        const context = new AudioCtx();
+        const src = context.createMediaElementSource(audioRef.current);
+        const an = context.createAnalyser();
+        src.connect(an); an.connect(context.destination);
+        setAudioContext(context); setAnalyser(an);
+      }
+      audioRef.current.play().catch(() => {}); 
     }
+    setIsPlaying(!isPlaying);
   };
 
   return (
@@ -202,7 +168,7 @@ export function Player() {
         <VinylRecord isPlaying={isPlaying} coverUrl={metadata.coverUrl} />
       </motion.div>
 
-      <div className="w-full max-w-xs h-20 flex items-end justify-center z-10">
+      <div className="w-full max-w-xs h-20 flex items-end justify-center z-10 text-[#dd9933]">
         <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
       </div>
 
@@ -211,9 +177,9 @@ export function Player() {
         <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm truncate">{metadata.artist}</p>
       </div>
 
-      {/* Volumen */}
+      {/* Control Volumen */}
       <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10 backdrop-blur-sm">
-        <button onClick={handleToggleMute} className="text-white/70 hover:text-[#dd9933] transition-colors">
+        <button onClick={() => setIsMuted(!isMuted)} className="text-white/70 hover:text-[#dd9933]">
           {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
@@ -223,10 +189,10 @@ export function Player() {
       <div className="flex items-center gap-6 z-10">
         <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-lg" : "bg-zinc-900")}><Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} /></button>
         <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl active:scale-95 transition-transform">{isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}</button>
-        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors"><Mic2 size={24} /></button>
+        <button onClick={() => { if(cowbellRef.current){cowbellRef.current.play(); setIsCencerroShaking(true); setTimeout(()=>setIsCencerroShaking(false), 300); confetti({particleCount:40}); } }} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors"><Mic2 size={24} /></button>
       </div>
 
-      {/* Redes */}
+      {/* Footer Social */}
       <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
         <div className="flex gap-6 text-white/70">
           <a href="https://instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
@@ -234,10 +200,10 @@ export function Player() {
           <a href="https://youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Youtube size={24} /></a>
           <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Globe size={24} /></a>
         </div>
-        <button onClick={async () => { const msg = `🎶 ${metadata.title}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { await navigator.clipboard.writeText(window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
+        <button onClick={async () => { const msg = `🎶 ${metadata.title}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { navigator.clipboard.writeText(window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
       </div>
 
-      {/* MODAL: LETRAS */}
+      {/* MODALES GLASSMORPHISM */}
       <AnimatePresence>
         {showLyrics && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[110] p-6 flex flex-col backdrop-blur-xl">
@@ -245,14 +211,13 @@ export function Player() {
               <div><h3 className="text-xl font-black uppercase text-[#dd9933]">Letras</h3><p className="text-xs text-zinc-300">{metadata.title}</p></div>
               <button onClick={() => setShowLyrics(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
             </div>
-            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center backdrop-blur-sm">
-              {loadingLyrics ? <div className="animate-pulse">Buscando el pregón...</div> : lyrics}
+            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center">
+              {loadingLyrics ? <div className="animate-pulse">Buscando con IA...</div> : lyrics}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODAL: HISTORIAL */}
       <AnimatePresence>
         {showHistory && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 overflow-y-auto backdrop-blur-xl">
@@ -262,13 +227,12 @@ export function Player() {
         )}
       </AnimatePresence>
 
-      {/* MODAL: ALARMAS */}
       <AnimatePresence>
         {showAlarms && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 backdrop-blur-xl">
-            <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase">Despertador</h3><button onClick={() => setShowAlarms(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
-            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl">
-              <p className="text-sm text-zinc-200">Programa tu hora y despierta con salsa. La radio sonará sola.</p>
+            <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase text-[#dd9933]">Despertador Salsero</h3><button onClick={() => setShowAlarms(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
+            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl text-sm text-zinc-200">
+               Programa tu hora y despierta con salsa. La radio sonará sola.<span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta.</span>
             </div>
             <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-3xl font-black mb-6 border border-[#dd9933] text-center" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
             <div className="space-y-4">{alarms.map((alarm) => (<div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5"><span className="text-3xl font-black text-zinc-50">{alarm.time}</span><button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg">ELIMINAR</button></div>))}</div>
