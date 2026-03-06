@@ -9,6 +9,7 @@ import { VinylRecord } from "./VinylRecord";
 import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import confetti from "canvas-confetti";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Firebase Imports
 import { messaging } from "../firebase-config"; 
@@ -20,6 +21,9 @@ const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu7
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
 const VAPID_KEY = "BB96feZebT300xmBryJSxCpA2ecbPGhBOdZYslyqOQLdIScS4V_80TLi4O9lYBMvcYTg59yhCXCJB6AlpzAzhTA";
+
+// Acceso a la API Key de Gemini
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
 interface SongMetadata {
   id: string;
@@ -36,9 +40,11 @@ interface Alarm {
 }
 
 export function Player() {
+  // --- ESTADOS ---
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
+  const [prevVolume, setPrevVolume] = useState(0.8);
   const [metadata, setMetadata] = useState<SongMetadata>({
     id: "1",
     title: "Mundial de Salsa",
@@ -70,6 +76,7 @@ export function Player() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
+  // --- MOTOR DE AUDIO ---
   const initAudioContext = () => {
     if (audioContext || !audioRef.current) return;
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -82,27 +89,42 @@ export function Player() {
     setAnalyser(analyserNode);
   };
 
-  // --- LÓGICA DE LETRAS MEJORADA ---
+  // --- LÓGICA DE LETRAS ---
   const fetchLyrics = async (artist: string, title: string) => {
-    if (!artist || artist === "Mundial de Salsa") return;
+    if (title === "Mundial de Salsa" || !title) return;
     setLoadingLyrics(true);
     setLyrics("");
-    
-    // Limpiar el título (quitar "Remaster", "Live", etc para mejor búsqueda)
-    const cleanTitle = title.replace(/\(.*\)|\[.*\]|- Remastered|- Live/gi, "").trim();
-    
     try {
-      const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(cleanTitle)}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setLyrics(data.lyrics || "Letra no disponible para este mambo. ¡Síguelo por oído!");
-    } catch (e) {
-      setLyrics("Servidor de letras ocupado. Intenta cerrar y abrir el panel en un momento.");
+      const response = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.lyrics) {
+          setLyrics(data.lyrics);
+          setLoadingLyrics(false);
+          return;
+        }
+      }
+      throw new Error("Lyrics.ovh falló");
+    } catch (err) {
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const prompt = `Proporciona la letra de la canción de salsa "${title}" del artista "${artist}". Devuelve solo la letra, sin introducciones.`;
+        const result = await model.generateContent(prompt);
+        const aiLyrics = result.response.text();
+        setLyrics(aiLyrics || "Letra no encontrada.");
+      } catch (aiErr) {
+        setLyrics("Error al cargar letras. Intenta más tarde.");
+      }
     } finally {
       setLoadingLyrics(false);
     }
   };
 
+  useEffect(() => {
+    if (showLyrics) fetchLyrics(metadata.artist, metadata.title);
+  }, [showLyrics, metadata.title]);
+
+  // --- METADATA EN VIVO ---
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
     eventSource.onmessage = async (event) => {
@@ -114,56 +136,61 @@ export function Player() {
         const cancion = partes[1] || "En Vivo";
 
         if (cancion !== metadata.title) {
-          updateTrack(artista, cancion);
+          let cover = FALLBACK_COVER_URL;
+          try {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
+            const data = await res.json();
+            const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
+            if (imgUrl) cover = imgUrl;
+          } catch (e) {}
+
+          const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
+          setMetadata(newSong);
+          setHistory(prev => {
+            const updated = [newSong, ...prev].slice(0, 15);
+            localStorage.setItem("radio_history", JSON.stringify(updated));
+            return updated;
+          });
+
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: cancion, artist: artista, album: 'Mundial de Salsa Radio',
+              artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
+            });
+          }
         }
-      } catch (err) { console.error(err); }
+      } catch (err) {}
     };
-
-    async function updateTrack(artista: string, cancion: string) {
-      let cover = FALLBACK_COVER_URL;
-      try {
-        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
-        const data = await res.json();
-        const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
-        if (imgUrl && imgUrl !== "") cover = imgUrl;
-      } catch (e) { }
-
-      const newSong: SongMetadata = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
-      setMetadata(newSong);
-      
-      // Si el panel de letras está abierto, buscar la nueva
-      if (showLyrics) fetchLyrics(artista, cancion);
-
-      setHistory(prev => {
-        const updated = [newSong, ...prev].slice(0, 15);
-        localStorage.setItem("radio_history", JSON.stringify(updated));
-        return updated;
-      });
-
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: cancion, artist: artista, album: 'Mundial de Salsa Radio',
-          artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
-        });
-      }
-    }
     return () => eventSource.close();
-  }, [metadata.title, showLyrics]);
+  }, [metadata.title]);
 
+  // --- ALARMAS ---
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       alarms.forEach(alarm => {
-        if (alarm.enabled && alarm.time === currentTime && !isPlaying) handleTogglePlay();
+        if (alarm.enabled && alarm.time === currentTime && !isPlaying) {
+          handleTogglePlay();
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        }
       });
     }, 30000);
     return () => clearInterval(timer);
   }, [alarms, isPlaying]);
 
+  // --- VOLUMEN Y CONTROLES ---
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current.muted = isMuted;
+    }
   }, [volume, isMuted]);
+
+  const handleToggleMute = () => {
+    if (isMuted) { setIsMuted(false); setVolume(prevVolume); }
+    else { setPrevVolume(volume); setIsMuted(true); setVolume(0); }
+  };
 
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
@@ -174,10 +201,8 @@ export function Player() {
 
   const playSabor = () => {
     if (cowbellRef.current) {
-      cowbellRef.current.currentTime = 0;
-      cowbellRef.current.play();
-      setIsCencerroShaking(true);
-      setTimeout(() => setIsCencerroShaking(false), 300);
+      cowbellRef.current.currentTime = 0; cowbellRef.current.play();
+      setIsCencerroShaking(true); setTimeout(() => setIsCencerroShaking(false), 300);
       confetti({ particleCount: 40, spread: 70, origin: { y: 0.6 }, colors: ['#dd9933', '#ffffff'] });
     }
   };
@@ -188,7 +213,7 @@ export function Player() {
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
         <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg"><Bell className="text-white w-6 h-6" /></div>
         <div className="flex items-center space-x-3">
-          <button onClick={() => { setShowLyrics(true); fetchLyrics(metadata.artist, metadata.title); }} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933]"><FileText size={20} /></button>
+          <button onClick={() => setShowLyrics(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933]"><FileText size={20} /></button>
           <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933]"><AlarmClock size={20} /></button>
           <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933]"><History size={20} /></button>
         </div>
@@ -208,7 +233,9 @@ export function Player() {
       </div>
 
       <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10">
-        <button onClick={() => setIsMuted(!isMuted)} className="text-white/70 hover:text-[#dd9933] transition-colors">{isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}</button>
+        <button onClick={handleToggleMute} className="text-white/70 hover:text-[#dd9933]">
+          {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+        </button>
         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
       </div>
 
@@ -218,17 +245,17 @@ export function Player() {
         <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800"><Mic2 size={24} /></button>
       </div>
 
-      <div className="flex flex-col items-center gap-6 z-10 w-full">
+      <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
         <div className="flex gap-6 text-white/70">
-          <a href="https://instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
-          <a href="https://facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Facebook size={24} /></a>
-          <a href="https://youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Youtube size={24} /></a>
-          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Globe size={24} /></a>
+          <a href="https://instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer"><Instagram size={24} /></a>
+          <a href="https://facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer"><Facebook size={24} /></a>
+          <a href="https://youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer"><Youtube size={24} /></a>
+          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer"><Globe size={24} /></a>
         </div>
-        <button onClick={async () => { const msg = `🎶: ${metadata.title}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { await navigator.clipboard.writeText(msg + " " + window.location.href); alert('Copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
+        <button onClick={async () => { if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:metadata.title, url:window.location.href}); else { navigator.clipboard.writeText(window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
       </div>
 
-      {/* MODAL: LETRAS (Con efecto Vidrio) */}
+      {/* MODAL: LETRAS */}
       <AnimatePresence>
         {showLyrics && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[110] p-6 flex flex-col backdrop-blur-xl">
@@ -236,8 +263,8 @@ export function Player() {
               <div><h3 className="text-xl font-black uppercase text-[#dd9933]">Letras</h3><p className="text-xs text-zinc-300">{metadata.title}</p></div>
               <button onClick={() => setShowLyrics(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
             </div>
-            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 leading-relaxed whitespace-pre-wrap text-center backdrop-blur-sm">
-              {loadingLyrics ? <div className="flex flex-col items-center justify-center h-full gap-2"><div className="w-8 h-8 border-4 border-[#dd9933] border-t-transparent rounded-full animate-spin"></div><p className="text-xs italic">Buscando el pregón...</p></div> : lyrics}
+            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center backdrop-blur-sm">
+              {loadingLyrics ? <div className="animate-pulse">Buscando el pregón...</div> : lyrics}
             </div>
           </motion.div>
         )}
@@ -248,18 +275,38 @@ export function Player() {
         {showHistory && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 overflow-y-auto backdrop-blur-xl">
             <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black uppercase">Historial</h3><button onClick={() => setShowHistory(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
-            <div className="space-y-4">{history.map((song) => (<div key={song.id} className="flex items-center gap-4 bg-zinc-950/40 p-3 rounded-xl border border-white/5 backdrop-blur-sm"><img src={song.coverUrl} className="w-12 h-12 rounded-lg object-cover" /><div className="flex-1 min-w-0"><p className="font-bold truncate text-zinc-50">{song.title}</p><p className="text-xs text-[#dd9933] truncate">{song.artist}</p></div><span className="text-[10px] text-zinc-400">{new Date(song.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>))}</div>
+            <div className="space-y-4">{history.map((song) => (<div key={song.id} className="flex items-center gap-4 bg-zinc-950/40 p-3 rounded-xl border border-white/5 backdrop-blur-sm"><img src={song.coverUrl} className="w-12 h-12 rounded-lg object-cover" /><div className="flex-1 min-w-0"><p className="font-bold truncate text-zinc-50">{song.title}</p><p className="text-xs text-[#dd9933] truncate">{song.artist}</p></div></div>))}</div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODAL: ALARMAS */}
+      {/* MODAL: ALARMAS (Con texto explicativo) */}
       <AnimatePresence>
         {showAlarms && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 backdrop-blur-xl">
-            <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black uppercase">Alarmas</h3><button onClick={() => setShowAlarms(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
-            <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-2xl font-bold mb-6 border border-[#dd9933] accent-[#dd9933]" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
-            <div className="space-y-4">{alarms.map((alarm) => (<div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5"><span className="text-3xl font-black text-zinc-50">{alarm.time}</span><button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg">ELIMINAR</button></div>))}</div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-black uppercase">Despertador Salsero</h3>
+              <button onClick={() => setShowAlarms(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
+            </div>
+            
+            {/* Texto explicativo añadido */}
+            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl">
+              <p className="text-sm text-zinc-200 leading-snug">
+                Programa tu hora y <span className="text-[#dd9933] font-bold">despierta con la mejor salsa</span>. La emisora empezará a sonar automáticamente a la hora elegida. 
+                <span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta en segundo plano.</span>
+              </p>
+            </div>
+
+            <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-3xl font-black mb-6 border border-[#dd9933] accent-[#dd9933] text-center" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
+            
+            <div className="space-y-4">
+              {alarms.map((alarm) => (
+                <div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5">
+                  <span className="text-3xl font-black text-zinc-50">{alarm.time}</span>
+                  <button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg">ELIMINAR</button>
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
