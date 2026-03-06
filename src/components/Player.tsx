@@ -8,7 +8,12 @@ import {
   Zap,
   Mic2,
   MonitorSmartphone,
-  Download
+  Download,
+  Share2,      // Nuevo
+  Instagram,   // Nuevo
+  Facebook,    // Nuevo
+  Youtube,     // Nuevo
+  Globe        // Nuevo
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VinylRecord } from "./VinylRecord";
@@ -125,18 +130,16 @@ export function Player() {
     };
   }, []);
 
-  // --- EFECTO: NOTIFICACIONES FIREBASE (CON FIX PARA GITHUB PAGES) ---
+  // --- EFECTO: NOTIFICACIONES FIREBASE ---
   useEffect(() => {
     const setupNotifications = async () => {
       try {
         const permission = await Notification.requestPermission();
         if (permission === "granted") {
-          // Registro manual del Service Worker especificando la subcarpeta del repositorio
           const registration = await navigator.serviceWorker.register(
             "/Mundialdesalsa-Radio-APP/firebase-messaging-sw.js"
           );
 
-          // Obtenemos el token pasando la instancia de registro manual
           const token = await getToken(messaging, { 
             vapidKey: VAPID_KEY,
             serviceWorkerRegistration: registration 
@@ -160,14 +163,29 @@ export function Player() {
   }, []);
 
   // --- ACCIONES ---
+  const handleShare = async () => {
+    const shareData = {
+      title: 'Mundial de Salsa Radio',
+      text: 'Escucha la mejor salsa del mundo desde Cali. ¡Azótale baldosa!',
+      url: window.location.href
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('Enlace copiado al portapapeles');
+      }
+    } catch (err) {
+      console.log('Error al compartir:', err);
+    }
+  };
+
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-    if (typeof window.gtag === 'function') {
-      window.gtag('event', 'install_btn_click', { 'event_category': 'PWA' });
-    }
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`Instalación: ${outcome}`);
     setDeferredPrompt(null);
     setShowInstallButton(false);
   };
@@ -180,9 +198,6 @@ export function Player() {
       initAudioContext();
       audioRef.current.load();
       audioRef.current.play();
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'play_radio', { 'event_category': 'Player', 'song': metadata.title });
-      }
     }
     setIsPlaying(!isPlaying);
   };
@@ -191,9 +206,6 @@ export function Player() {
     if (cowbellRef.current) {
       cowbellRef.current.currentTime = 0;
       cowbellRef.current.play();
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'cowbell_hit', { 'event_category': 'Interaction' });
-      }
       setIsCencerroShaking(true);
       setTimeout(() => setIsCencerroShaking(false), 300);
       confetti({ particleCount: 40, spread: 70, origin: { y: 0.6 }, colors: ['#dd9933', '#ffffff'] });
@@ -274,6 +286,32 @@ export function Player() {
 
         <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors">
           <Mic2 size={24} />
+        </button>
+      </div>
+
+      {/* REDES SOCIALES Y COMPARTIR */}
+      <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
+        <div className="flex gap-6">
+          <a href="https://www.instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+            <Instagram size={24} />
+          </a>
+          <a href="https://www.facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+            <Facebook size={24} />
+          </a>
+          <a href="https://www.youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+            <Youtube size={24} />
+          </a>
+          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+            <Globe size={24} />
+          </a>
+        </div>
+
+        <button 
+          onClick={handleShare}
+          className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-6 py-3 rounded-full hover:bg-zinc-800 transition-all active:scale-95"
+        >
+          <Share2 size={18} className="text-[#dd9933]" />
+          <span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span>
         </button>
       </div>
 
