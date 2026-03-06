@@ -17,7 +17,7 @@ import { cn } from "@/src/lib/utils";
 import { format } from "date-fns";
 import confetti from "canvas-confetti";
 
-// Firebase Imports (Asegúrate de tener configurado src/firebase-config.ts)
+// Firebase Imports
 import { messaging } from "../firebase-config"; 
 import { getToken, onMessage } from "firebase/messaging";
 
@@ -125,16 +125,25 @@ export function Player() {
     };
   }, []);
 
-  // --- EFECTO: NOTIFICACIONES FIREBASE ---
+  // --- EFECTO: NOTIFICACIONES FIREBASE (CON FIX PARA GITHUB PAGES) ---
   useEffect(() => {
     const setupNotifications = async () => {
       try {
         const permission = await Notification.requestPermission();
         if (permission === "granted") {
-          const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+          // Registro manual del Service Worker especificando la subcarpeta del repositorio
+          const registration = await navigator.serviceWorker.register(
+            "/Mundialdesalsa-Radio-APP/firebase-messaging-sw.js"
+          );
+
+          // Obtenemos el token pasando la instancia de registro manual
+          const token = await getToken(messaging, { 
+            vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: registration 
+          });
+
           if (token) {
             console.log("Token PUSH listo:", token);
-            // Aquí enviarías el token a tu servidor si fuera necesario
           }
         }
       } catch (error) {
