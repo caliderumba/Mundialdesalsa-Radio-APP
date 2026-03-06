@@ -10,8 +10,8 @@ import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import confetti from "canvas-confetti";
 
-// CAMBIO CRÍTICO: Usamos el paquete que YA tienes en tu package.json
-import { GoogleGenerativeAI } from "@google/genai";
+// CAMBIO MAESTRO: Importación compatible con @google/genai
+import * as GenAI from "@google/genai";
 
 // Firebase
 import { messaging } from "../firebase-config"; 
@@ -22,7 +22,7 @@ const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu7
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
 
-// API Key con prefijo VITE para que sea visible en el cliente
+// API Key segura
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 interface SongMetadata {
@@ -65,7 +65,6 @@ export function Player() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  // --- LÓGICA DE LETRAS MEJORADA ---
   const fetchLyrics = async (artist: string, title: string) => {
     if (!title || title === "Mundial de Salsa") return;
     setLoadingLyrics(true);
@@ -76,15 +75,16 @@ export function Player() {
       if (data.lyrics) { setLyrics(data.lyrics); setLoadingLyrics(false); return; }
       throw new Error();
     } catch (err) {
-      if (GEMINI_KEY) {
+      // FALLBACK CON IA USANDO @google/genai
+      if (GEMINI_KEY && (GenAI as any).GoogleGenerativeAI) {
         try {
-          const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-          const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-          const prompt = `Proporciona la letra de la canción "${title}" de "${artist}". Solo la letra, sin comentarios.`;
+          const client = new (GenAI as any).GoogleGenerativeAI(GEMINI_KEY);
+          const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const prompt = `Proporciona la letra de la canción "${title}" de "${artist}". Solo la letra, sin introducciones.`;
           const result = await model.generateContent(prompt);
           setLyrics(result.response.text());
-        } catch (e) { setLyrics("Letra no disponible en este momento."); }
-      } else { setLyrics("Buscando el pregón..."); }
+        } catch (e) { setLyrics("Letra no disponible temporalmente."); }
+      } else { setLyrics("Letra no disponible."); }
     } finally { setLoadingLyrics(false); }
   };
 
@@ -118,15 +118,6 @@ export function Player() {
     };
     return () => eventSource.close();
   }, [metadata.title]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      alarms.forEach(a => { if (a.enabled && a.time === timeStr && !isPlaying) handleTogglePlay(); });
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [alarms, isPlaying]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -185,7 +176,7 @@ export function Player() {
         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
       </div>
 
-      {/* Controles */}
+      {/* Controles Principales */}
       <div className="flex items-center gap-6 z-10">
         <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-lg" : "bg-zinc-900")}><Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} /></button>
         <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl active:scale-95 transition-transform">{isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}</button>
@@ -203,7 +194,7 @@ export function Player() {
         <button onClick={async () => { const msg = `🎶 ${metadata.title}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { navigator.clipboard.writeText(window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
       </div>
 
-      {/* MODALES GLASSMORPHISM */}
+      {/* MODALES */}
       <AnimatePresence>
         {showLyrics && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[110] p-6 flex flex-col backdrop-blur-xl">
@@ -212,7 +203,7 @@ export function Player() {
               <button onClick={() => setShowLyrics(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
             </div>
             <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center">
-              {loadingLyrics ? <div className="animate-pulse">Buscando con IA...</div> : lyrics}
+              {loadingLyrics ? <div className="animate-pulse">Buscando...</div> : lyrics}
             </div>
           </motion.div>
         )}
