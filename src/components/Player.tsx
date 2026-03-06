@@ -8,30 +8,24 @@ import {
   Zap,
   Mic2,
   MonitorSmartphone,
-  Download,
   Share2,
   Instagram,
   Facebook,
   Youtube,
-  Globe
+  Globe,
+  Volume2,    // Icono de volumen alto
+  Volume1,    // Icono de volumen bajo
+  VolumeX     // Icono de Mute
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VinylRecord } from "./VinylRecord";
 import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
-import { format } from "date-fns";
 import confetti from "canvas-confetti";
 
 // Firebase Imports
 import { messaging } from "../firebase-config"; 
 import { getToken, onMessage } from "firebase/messaging";
-
-// Declaración para Google Analytics
-declare global {
-  interface Window {
-    gtag: (...args: any[]) => void;
-  }
-}
 
 // Constants
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
@@ -44,46 +38,31 @@ interface SongMetadata {
   id: string;
   title: string;
   artist: string;
-  album?: string;
   coverUrl: string;
-  timestamp: Date;
-}
-
-interface Alarm {
-  id: string;
-  time: string;
-  enabled: boolean;
 }
 
 export function Player() {
   // --- ESTADOS ---
   const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.8); // Volumen inicial al 80%
+  const [isMuted, setIsMuted] = useState(false);
+  const [prevVolume, setPrevVolume] = useState(0.8);
   const [metadata, setMetadata] = useState<SongMetadata>({
     id: "1",
     title: "Mundial de Salsa",
     artist: "Cali - Colombia",
-    album: "La Capital Mundial de la Salsa",
     coverUrl: FALLBACK_COVER_URL,
-    timestamp: new Date(),
   });
-  const [history, setHistory] = useState<SongMetadata[]>([]);
-  const [alarms, setAlarms] = useState<Alarm[]>(() => {
-    const saved = localStorage.getItem("radio_alarms");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [showHistory, setShowHistory] = useState(false);
-  const [showAlarms, setShowAlarms] = useState(false);
   const [isFiestaMode, setIsFiestaMode] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [isCencerroShaking, setIsCencerroShaking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  // --- AUDIO CONTEXT ---
+  // --- AUDIO MOTOR ---
   const initAudioContext = () => {
     if (audioContext || !audioRef.current) return;
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -96,107 +75,64 @@ export function Player() {
     setAnalyser(analyserNode);
   };
 
-  // --- EFECTO: METADATA EN TIEMPO REAL (ZENO.FM) ---
+  // --- EFECTO: METADATOS (Lógica EventSource) ---
   useEffect(() => {
-    const fetchMetadata = async () => {
+    const eventSource = new EventSource(ZENO_METADATA_URL);
+    eventSource.onmessage = async (event) => {
       try {
-        const response = await fetch(ZENO_METADATA_URL);
-        const data = await response.json();
-        
-        if (data && data.streamTitle) {
-          const [artist, title] = data.streamTitle.split(" - ");
-          const newArtist = artist?.trim() || "Mundial de Salsa";
-          const newTitle = title?.trim() || "En Vivo";
+        const raw = JSON.parse(event.data);
+        const fullTitle = raw.streamTitle || "Mundial de Salsa - Cali";
+        const partes = fullTitle.split("-").map((s: string) => s.trim());
+        const artista = partes[0] || "Mundial de Salsa";
+        const cancion = partes[1] || "En Vivo";
 
-          if (newTitle !== metadata.title) {
-            // Buscar carátula en Last.fm
-            let cover = FALLBACK_COVER_URL;
-            try {
-              const lastFmRes = await fetch(
-                `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(newArtist)}&track=${encodeURIComponent(newTitle)}&format=json`
-              );
-              const lastFmData = await lastFmRes.json();
-              if (lastFmData.track?.album?.image) {
-                cover = lastFmData.track.album.image[3]['#text'] || FALLBACK_COVER_URL;
-              }
-            } catch (e) {
-              console.error("Error cargando carátula");
-            }
-
-            const newSong = {
-              id: Date.now().toString(),
-              title: newTitle,
-              artist: newArtist,
-              coverUrl: cover,
-              timestamp: new Date()
-            };
-
-            setMetadata(newSong);
-            setHistory(prev => [newSong, ...prev].slice(0, 10));
-          }
+        if (cancion !== metadata.title) {
+          buscarCaratula(artista, cancion);
         }
-      } catch (error) {
-        console.error("Error de metadata:", error);
-      }
+      } catch (err) { console.error(err); }
     };
 
-    const interval = setInterval(fetchMetadata, 15000); // Actualiza cada 15 segundos
-    fetchMetadata();
-    return () => clearInterval(interval);
+    async function buscarCaratula(artista: string, cancion: string) {
+      try {
+        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
+        const data = await res.json();
+        const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
+        setMetadata({
+          id: Date.now().toString(),
+          title: cancion,
+          artist: artista,
+          coverUrl: (imgUrl && imgUrl !== "") ? imgUrl : FALLBACK_COVER_URL
+        });
+      } catch (e) {
+        setMetadata({ id: Date.now().toString(), title: cancion, artist: artista, coverUrl: FALLBACK_COVER_URL });
+      }
+    }
+    return () => eventSource.close();
   }, [metadata.title]);
 
-  // --- EFECTO: PWA E INSTALACIÓN ---
+  // --- EFECTO: CONTROL DE VOLUMEN ---
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallButton(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  // --- EFECTO: NOTIFICACIONES FIREBASE ---
-  useEffect(() => {
-    const setupNotifications = async () => {
-      try {
-        const permission = await Notification.requestPermission();
-        if (permission === "granted") {
-          const registration = await navigator.serviceWorker.register(
-            "/Mundialdesalsa-Radio-APP/firebase-messaging-sw.js"
-          );
-          const token = await getToken(messaging, { 
-            vapidKey: VAPID_KEY,
-            serviceWorkerRegistration: registration 
-          });
-          if (token) console.log("Token PUSH listo:", token);
-        }
-      } catch (error) {
-        console.error("Error en Firebase PWA:", error);
-      }
-    };
-    setupNotifications();
-  }, []);
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [volume, isMuted]);
 
   // --- ACCIONES ---
-  const handleShare = async () => {
-    const shareData = {
-      title: 'Mundial de Salsa Radio',
-      text: `Escuchando: ${metadata.title} - ${metadata.artist}`,
-      url: window.location.href
-    };
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(shareData.url);
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.9 }, colors: ['#dd9933', '#ffffff'] });
-        alert('¡Enlace copiado! Ya puedes pegarlo donde quieras.');
-      }
-    } catch (err) {
-      console.log('Error al compartir');
+  const handleToggleMute = () => {
+    if (isMuted) {
+      setIsMuted(false);
+      setVolume(prevVolume || 0.5);
+    } else {
+      setPrevVolume(volume);
+      setIsMuted(true);
+      setVolume(0);
     }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = parseFloat(e.target.value);
+    setVolume(newVol);
+    if (newVol > 0) setIsMuted(false);
   };
 
   const handleTogglePlay = () => {
@@ -205,7 +141,6 @@ export function Player() {
       audioRef.current.pause();
     } else {
       initAudioContext();
-      audioRef.current.load();
       audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
@@ -221,46 +156,32 @@ export function Player() {
     }
   };
 
-  // --- RENDER ---
+  const handleShare = async () => {
+    const msg = `🎶 Escuchando: ${metadata.title} - ${metadata.artist}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Mundial de Salsa', text: msg, url: window.location.href }); } catch (e) {}
+    } else {
+      await navigator.clipboard.writeText(msg + " " + window.location.href);
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.9 }, colors: ['#dd9933', '#ffffff'] });
+      alert("Enlace copiado");
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6 space-y-8">
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-        <div className="flex items-center space-x-2">
-          <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg">
-            <Bell className="text-white w-6 h-6" />
-          </div>
+        <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg">
+          <Bell className="text-white w-6 h-6" />
         </div>
-        
         <div className="flex items-center space-x-3">
-          <AnimatePresence>
-            {showInstallButton && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="flex items-center gap-2 bg-[#dd9933] text-black px-4 py-2 rounded-full font-bold text-[10px] shadow-xl"
-              >
-                <MonitorSmartphone size={14} />
-                <span>INSTALAR APP</span>
-              </motion.button>
-            )}
-          </AnimatePresence>
-          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md">
-            <AlarmClock size={20} />
-          </button>
-          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md">
-            <History size={20} />
-          </button>
+          <button className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md"><AlarmClock size={20} /></button>
+          <button className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md"><History size={20} /></button>
         </div>
       </div>
 
       {/* Disco Vinilo */}
-      <motion.div
-        animate={isCencerroShaking ? { x: [0, -4, 4, -4, 4, 0] } : {}}
-        transition={{ duration: 0.2 }}
-        className="z-10"
-      >
+      <motion.div animate={isCencerroShaking ? { x: [0, -4, 4, -4, 4, 0] } : {}} className="z-10">
         <VinylRecord isPlaying={isPlaying} coverUrl={metadata.coverUrl} />
       </motion.div>
 
@@ -269,10 +190,22 @@ export function Player() {
         <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
       </div>
 
-      {/* Metadata - AQUÍ SE MUESTRA EL NOMBRE Y ARTISTA REAL */}
+      {/* Metadata */}
       <div className="text-center z-10 px-4">
         <h2 className="text-2xl font-black uppercase tracking-tight line-clamp-1">{metadata.title}</h2>
         <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm line-clamp-1">{metadata.artist}</p>
+      </div>
+
+      {/* BARRA DE VOLUMEN */}
+      <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10">
+        <button onClick={handleToggleMute} className="text-white/70 hover:text-[#dd9933] transition-colors">
+          {isMuted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
+        </button>
+        <input 
+          type="range" min="0" max="1" step="0.01" 
+          value={volume} onChange={handleVolumeChange}
+          className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]"
+        />
       </div>
 
       {/* Controles Principales */}
@@ -291,10 +224,10 @@ export function Player() {
       {/* Redes y Compartir */}
       <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
         <div className="flex gap-6 text-white/70">
-          <a href="https://www.instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
-          <a href="https://www.facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Facebook size={24} /></a>
-          <a href="https://www.youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Youtube size={24} /></a>
-          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Globe size={24} /></a>
+          <a href="https://instagram.com/mundialdesalsa" target="_blank" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
+          <a href="https://facebook.com/mundialdesalsa" target="_blank" className="hover:text-[#dd9933]"><Facebook size={24} /></a>
+          <a href="https://youtube.com/@mundialdesalsa" target="_blank" className="hover:text-[#dd9933]"><Youtube size={24} /></a>
+          <a href="https://mundialdesalsa.com" target="_blank" className="hover:text-[#dd9933]"><Globe size={24} /></a>
         </div>
         <button onClick={handleShare} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 transition-all active:scale-95">
           <Share2 size={18} className="text-[#dd9933]" />
