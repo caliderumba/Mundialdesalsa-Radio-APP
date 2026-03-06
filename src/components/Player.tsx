@@ -61,7 +61,7 @@ export function Player() {
   const [metadata, setMetadata] = useState<SongMetadata>({
     id: "1",
     title: "Mundial de Salsa",
-    artist: "En Vivo",
+    artist: "Cali - Colombia",
     album: "La Capital Mundial de la Salsa",
     coverUrl: FALLBACK_COVER_URL,
     timestamp: new Date(),
@@ -96,6 +96,55 @@ export function Player() {
     setAnalyser(analyserNode);
   };
 
+  // --- EFECTO: METADATA EN TIEMPO REAL (ZENO.FM) ---
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const response = await fetch(ZENO_METADATA_URL);
+        const data = await response.json();
+        
+        if (data && data.streamTitle) {
+          const [artist, title] = data.streamTitle.split(" - ");
+          const newArtist = artist?.trim() || "Mundial de Salsa";
+          const newTitle = title?.trim() || "En Vivo";
+
+          if (newTitle !== metadata.title) {
+            // Buscar carátula en Last.fm
+            let cover = FALLBACK_COVER_URL;
+            try {
+              const lastFmRes = await fetch(
+                `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(newArtist)}&track=${encodeURIComponent(newTitle)}&format=json`
+              );
+              const lastFmData = await lastFmRes.json();
+              if (lastFmData.track?.album?.image) {
+                cover = lastFmData.track.album.image[3]['#text'] || FALLBACK_COVER_URL;
+              }
+            } catch (e) {
+              console.error("Error cargando carátula");
+            }
+
+            const newSong = {
+              id: Date.now().toString(),
+              title: newTitle,
+              artist: newArtist,
+              coverUrl: cover,
+              timestamp: new Date()
+            };
+
+            setMetadata(newSong);
+            setHistory(prev => [newSong, ...prev].slice(0, 10));
+          }
+        }
+      } catch (error) {
+        console.error("Error de metadata:", error);
+      }
+    };
+
+    const interval = setInterval(fetchMetadata, 15000); // Actualiza cada 15 segundos
+    fetchMetadata();
+    return () => clearInterval(interval);
+  }, [metadata.title]);
+
   // --- EFECTO: PWA E INSTALACIÓN ---
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -104,24 +153,8 @@ export function Player() {
       setShowInstallButton(true);
     };
 
-    const handleAppInstalled = () => {
-      setShowInstallButton(false);
-      setDeferredPrompt(null);
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#dd9933', '#ffffff', '#000000']
-      });
-    };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
   // --- EFECTO: NOTIFICACIONES FIREBASE ---
@@ -133,67 +166,37 @@ export function Player() {
           const registration = await navigator.serviceWorker.register(
             "/Mundialdesalsa-Radio-APP/firebase-messaging-sw.js"
           );
-
           const token = await getToken(messaging, { 
             vapidKey: VAPID_KEY,
             serviceWorkerRegistration: registration 
           });
-
-          if (token) {
-            console.log("Token PUSH listo:", token);
-          }
+          if (token) console.log("Token PUSH listo:", token);
         }
       } catch (error) {
         console.error("Error en Firebase PWA:", error);
       }
     };
-
-    const unsubscribe = onMessage(messaging, (payload) => {
-      console.log("Mensaje recibido:", payload);
-    });
-
     setupNotifications();
-    return () => unsubscribe();
   }, []);
 
   // --- ACCIONES ---
   const handleShare = async () => {
     const shareData = {
       title: 'Mundial de Salsa Radio',
-      text: 'Escucha la mejor salsa del mundo desde Cali. ¡Azótale baldosa!',
+      text: `Escuchando: ${metadata.title} - ${metadata.artist}`,
       url: window.location.href
     };
-
     try {
-      // Intentamos compartir nativamente (Móviles)
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        throw new Error('Web Share no soportado en este navegador');
+        await navigator.clipboard.writeText(shareData.url);
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.9 }, colors: ['#dd9933', '#ffffff'] });
+        alert('¡Enlace copiado! Ya puedes pegarlo donde quieras.');
       }
     } catch (err) {
-      // Caso PC o error: Copiar al portapapeles
-      await navigator.clipboard.writeText(shareData.url);
-      
-      // Feedback visual con confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.9 },
-        colors: ['#dd9933', '#ffffff']
-      });
-      
-      alert('¡Enlace copiado! Ya puedes pegarlo en tus redes sociales.');
+      console.log('Error al compartir');
     }
-  };
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`Instalación: ${outcome}`);
-    setDeferredPrompt(null);
-    setShowInstallButton(false);
   };
 
   const handleTogglePlay = () => {
@@ -236,19 +239,17 @@ export function Player() {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                onClick={handleInstallClick}
-                className="flex items-center gap-2 bg-[#dd9933] text-black px-4 py-2 rounded-full font-bold text-[10px] shadow-xl active:scale-95 transition-transform"
+                className="flex items-center gap-2 bg-[#dd9933] text-black px-4 py-2 rounded-full font-bold text-[10px] shadow-xl"
               >
                 <MonitorSmartphone size={14} />
                 <span>INSTALAR APP</span>
               </motion.button>
             )}
           </AnimatePresence>
-
-          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 shadow-lg backdrop-blur-md hover:bg-zinc-800 transition-colors">
+          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md">
             <AlarmClock size={20} />
           </button>
-          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 shadow-lg backdrop-blur-md hover:bg-zinc-800 transition-colors">
+          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md">
             <History size={20} />
           </button>
         </div>
@@ -268,55 +269,35 @@ export function Player() {
         <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
       </div>
 
-      {/* Metadata */}
-      <div className="text-center z-10">
-        <h2 className="text-2xl font-black uppercase tracking-tight">{metadata.title}</h2>
-        <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm">{metadata.artist}</p>
+      {/* Metadata - AQUÍ SE MUESTRA EL NOMBRE Y ARTISTA REAL */}
+      <div className="text-center z-10 px-4">
+        <h2 className="text-2xl font-black uppercase tracking-tight line-clamp-1">{metadata.title}</h2>
+        <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm line-clamp-1">{metadata.artist}</p>
       </div>
 
       {/* Controles Principales */}
       <div className="flex items-center gap-6 z-10">
-        <button 
-          onClick={() => setIsFiestaMode(!isFiestaMode)} 
-          className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-[0_0_20px_rgba(221,153,51,0.4)]" : "bg-zinc-900 hover:bg-zinc-800")}
-        >
+        <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-lg" : "bg-zinc-900")}>
           <Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} />
         </button>
-
-        <button 
-          onClick={handleTogglePlay} 
-          className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform"
-        >
+        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl active:scale-95 transition-transform">
           {isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}
         </button>
-
-        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors">
+        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900">
           <Mic2 size={24} />
         </button>
       </div>
 
-      {/* SECCIÓN REDES Y COMPARTIR */}
+      {/* Redes y Compartir */}
       <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
-        <div className="flex gap-6">
-          <a href="https://www.instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
-            <Instagram size={24} />
-          </a>
-          <a href="https://www.facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
-            <Facebook size={24} />
-          </a>
-          <a href="https://www.youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
-            <Youtube size={24} />
-          </a>
-          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
-            <Globe size={24} />
-          </a>
+        <div className="flex gap-6 text-white/70">
+          <a href="https://www.instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
+          <a href="https://www.facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Facebook size={24} /></a>
+          <a href="https://www.youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Youtube size={24} /></a>
+          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Globe size={24} /></a>
         </div>
-
-        <button 
-          onClick={handleShare}
-          className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 transition-all active:scale-95 group"
-        >
-          <Share2 size={18} className="text-[#dd9933] group-hover:rotate-12 transition-transform" />
+        <button onClick={handleShare} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 transition-all active:scale-95">
+          <Share2 size={18} className="text-[#dd9933]" />
           <span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span>
         </button>
       </div>
