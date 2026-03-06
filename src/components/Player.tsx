@@ -9,11 +9,11 @@ import {
   Mic2,
   MonitorSmartphone,
   Download,
-  Share2,      // Nuevo
-  Instagram,   // Nuevo
-  Facebook,    // Nuevo
-  Youtube,     // Nuevo
-  Globe        // Nuevo
+  Share2,
+  Instagram,
+  Facebook,
+  Youtube,
+  Globe
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VinylRecord } from "./VinylRecord";
@@ -102,17 +102,11 @@ export function Player() {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallButton(true);
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'pwa_offer_view', { 'event_category': 'PWA' });
-      }
     };
 
     const handleAppInstalled = () => {
       setShowInstallButton(false);
       setDeferredPrompt(null);
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'pwa_install_success', { 'event_category': 'PWA' });
-      }
       confetti({
         particleCount: 150,
         spread: 100,
@@ -171,14 +165,25 @@ export function Player() {
     };
 
     try {
+      // Intentamos compartir nativamente (Móviles)
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(shareData.url);
-        alert('Enlace copiado al portapapeles');
+        throw new Error('Web Share no soportado en este navegador');
       }
     } catch (err) {
-      console.log('Error al compartir:', err);
+      // Caso PC o error: Copiar al portapapeles
+      await navigator.clipboard.writeText(shareData.url);
+      
+      // Feedback visual con confetti
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.9 },
+        colors: ['#dd9933', '#ffffff']
+      });
+      
+      alert('¡Enlace copiado! Ya puedes pegarlo en tus redes sociales.');
     }
   };
 
@@ -186,6 +191,7 @@ export function Player() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
+    console.log(`Instalación: ${outcome}`);
     setDeferredPrompt(null);
     setShowInstallButton(false);
   };
@@ -239,10 +245,10 @@ export function Player() {
             )}
           </AnimatePresence>
 
-          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 shadow-lg backdrop-blur-md">
+          <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 shadow-lg backdrop-blur-md hover:bg-zinc-800 transition-colors">
             <AlarmClock size={20} />
           </button>
-          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 shadow-lg backdrop-blur-md">
+          <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 shadow-lg backdrop-blur-md hover:bg-zinc-800 transition-colors">
             <History size={20} />
           </button>
         </div>
@@ -272,7 +278,7 @@ export function Player() {
       <div className="flex items-center gap-6 z-10">
         <button 
           onClick={() => setIsFiestaMode(!isFiestaMode)} 
-          className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-[0_0_20px_rgba(221,153,51,0.4)]" : "bg-zinc-900")}
+          className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-[0_0_20px_rgba(221,153,51,0.4)]" : "bg-zinc-900 hover:bg-zinc-800")}
         >
           <Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} />
         </button>
@@ -289,28 +295,28 @@ export function Player() {
         </button>
       </div>
 
-      {/* REDES SOCIALES Y COMPARTIR */}
+      {/* SECCIÓN REDES Y COMPARTIR */}
       <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
         <div className="flex gap-6">
-          <a href="https://www.instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+          <a href="https://www.instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
             <Instagram size={24} />
           </a>
-          <a href="https://www.facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+          <a href="https://www.facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
             <Facebook size={24} />
           </a>
-          <a href="https://www.youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+          <a href="https://www.youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
             <Youtube size={24} />
           </a>
-          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors">
+          <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-[#dd9933] transition-colors active:scale-90">
             <Globe size={24} />
           </a>
         </div>
 
         <button 
           onClick={handleShare}
-          className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-6 py-3 rounded-full hover:bg-zinc-800 transition-all active:scale-95"
+          className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 transition-all active:scale-95 group"
         >
-          <Share2 size={18} className="text-[#dd9933]" />
+          <Share2 size={18} className="text-[#dd9933] group-hover:rotate-12 transition-transform" />
           <span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span>
         </button>
       </div>
