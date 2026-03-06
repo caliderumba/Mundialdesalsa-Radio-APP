@@ -8,8 +8,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
   return {
-    // IMPORTANTE: Define la subcarpeta para todos los recursos del proyecto
-    base: '/Mundialdesalsa-Radio-APP/', 
+    // CAMBIO IMPORTANTE: Ahora el base es '/' porque la App vivirá en la raíz de tu dominio
+    base: '/', 
     
     plugins: [
       react(),
@@ -19,17 +19,18 @@ export default defineConfig(({ mode }) => {
         injectRegister: 'auto',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
-          name: 'MundialDeSalsa.Com - La Radio',
+          name: 'MundialDeSalsa.Com - Radio',
           short_name: 'MundialDeSalsa',
           description: 'Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.',
-          theme_color: '#dd9933', // Dorado para la barra de Windows/Android
-          background_color: '#09090b', // Negro para que el Splash Screen no parpadee en blanco
+          theme_color: '#dd9933',
+          background_color: '#09090b',
           display: 'standalone',
           display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'portrait',
           categories: ['entertainment', 'music'],
+          // Ajustamos start_url y scope para que coincidan con la nueva raíz
           start_url: './?utm_source=pwa&utm_medium=install&utm_campaign=app_salsa', 
-          scope: './', 
+          scope: '/', 
           icons: [
             {
               src: 'pwa-192x192.png',
