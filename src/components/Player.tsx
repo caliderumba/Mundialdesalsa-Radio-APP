@@ -18,7 +18,7 @@ import { format } from "date-fns";
 import confetti from "canvas-confetti";
 
 // Firebase Imports (Asegúrate de tener configurado src/firebase-config.ts)
-import { messaging } from "../firebase-config"; 
+import { messaging } from "../services/firebase-config"; 
 import { getToken, onMessage } from "firebase/messaging";
 
 // Declaración para Google Analytics
