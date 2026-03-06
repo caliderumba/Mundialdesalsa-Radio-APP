@@ -1,21 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
-  Play, 
-  Pause, 
-  History, 
-  AlarmClock, 
-  Bell,
-  Zap,
-  Mic2,
-  MonitorSmartphone,
-  Share2,
-  Instagram,
-  Facebook,
-  Youtube,
-  Globe,
-  Volume2,    // Icono de volumen alto
-  Volume1,    // Icono de volumen bajo
-  VolumeX     // Icono de Mute
+  Play, Pause, History, AlarmClock, Bell, Zap, Mic2, MonitorSmartphone,
+  Share2, Instagram, Facebook, Youtube, Globe, Volume2, Volume1, VolumeX 
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VinylRecord } from "./VinylRecord";
@@ -42,9 +28,8 @@ interface SongMetadata {
 }
 
 export function Player() {
-  // --- ESTADOS ---
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8); // Volumen inicial al 80%
+  const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVolume, setPrevVolume] = useState(0.8);
   const [metadata, setMetadata] = useState<SongMetadata>({
@@ -56,13 +41,11 @@ export function Player() {
   const [isFiestaMode, setIsFiestaMode] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [showInstallButton, setShowInstallButton] = useState(false);
   const [isCencerroShaking, setIsCencerroShaking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  // --- AUDIO MOTOR ---
   const initAudioContext = () => {
     if (audioContext || !audioRef.current) return;
     const context = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -75,7 +58,7 @@ export function Player() {
     setAnalyser(analyserNode);
   };
 
-  // --- EFECTO: METADATOS (Lógica EventSource) ---
+  // --- EFECTO: METADATOS Y PANTALLA DE BLOQUEO ---
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
     eventSource.onmessage = async (event) => {
@@ -93,40 +76,46 @@ export function Player() {
     };
 
     async function buscarCaratula(artista: string, cancion: string) {
+      let cover = FALLBACK_COVER_URL;
       try {
         const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
         const data = await res.json();
         const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
-        setMetadata({
-          id: Date.now().toString(),
+        if (imgUrl && imgUrl !== "") cover = imgUrl;
+      } catch (e) { }
+
+      setMetadata({ id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover });
+
+      // ACTUALIZAR PANTALLA DE BLOQUEO (MediaSession)
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
           title: cancion,
           artist: artista,
-          coverUrl: (imgUrl && imgUrl !== "") ? imgUrl : FALLBACK_COVER_URL
+          album: 'Mundial de Salsa Radio',
+          artwork: [
+            { src: cover, sizes: '512x512', type: 'image/webp' }
+          ]
         });
-      } catch (e) {
-        setMetadata({ id: Date.now().toString(), title: cancion, artist: artista, coverUrl: FALLBACK_COVER_URL });
       }
     }
     return () => eventSource.close();
   }, [metadata.title]);
 
-  // --- EFECTO: CONTROL DE VOLUMEN ---
+  // --- EFECTO: CONTROLES FÍSICOS (Play/Pause desde audífonos o teclado) ---
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', handleTogglePlay);
+      navigator.mediaSession.setActionHandler('pause', handleTogglePlay);
     }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
-  // --- ACCIONES ---
   const handleToggleMute = () => {
-    if (isMuted) {
-      setIsMuted(false);
-      setVolume(prevVolume || 0.5);
-    } else {
-      setPrevVolume(volume);
-      setIsMuted(true);
-      setVolume(0);
-    }
+    if (isMuted) { setIsMuted(false); setVolume(prevVolume || 0.5); }
+    else { setPrevVolume(volume); setIsMuted(true); setVolume(0); }
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,9 +128,11 @@ export function Player() {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused";
     } else {
       initAudioContext();
       audioRef.current.play();
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
     }
     setIsPlaying(!isPlaying);
   };
@@ -158,13 +149,14 @@ export function Player() {
 
   const handleShare = async () => {
     const msg = `🎶 Escuchando: ${metadata.title} - ${metadata.artist}`;
-    if (navigator.share) {
-      try { await navigator.share({ title: 'Mundial de Salsa', text: msg, url: window.location.href }); } catch (e) {}
-    } else {
-      await navigator.clipboard.writeText(msg + " " + window.location.href);
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.9 }, colors: ['#dd9933', '#ffffff'] });
-      alert("Enlace copiado");
-    }
+    try {
+      if (navigator.share) await navigator.share({ title: 'Mundial de Salsa', text: msg, url: window.location.href });
+      else {
+        await navigator.clipboard.writeText(msg + " " + window.location.href);
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.9 }, colors: ['#dd9933', '#ffffff'] });
+        alert("Enlace copiado");
+      }
+    } catch (e) { }
   };
 
   return (
@@ -180,17 +172,14 @@ export function Player() {
         </div>
       </div>
 
-      {/* Disco Vinilo */}
       <motion.div animate={isCencerroShaking ? { x: [0, -4, 4, -4, 4, 0] } : {}} className="z-10">
         <VinylRecord isPlaying={isPlaying} coverUrl={metadata.coverUrl} />
       </motion.div>
 
-      {/* Visualizador */}
       <div className="w-full max-w-xs h-20 flex items-end justify-center z-10">
         <Visualizer analyser={analyser} isPlaying={isPlaying} color={isFiestaMode ? "#ffffff" : "#dd9933"} />
       </div>
 
-      {/* Metadata */}
       <div className="text-center z-10 px-4">
         <h2 className="text-2xl font-black uppercase tracking-tight line-clamp-1">{metadata.title}</h2>
         <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm line-clamp-1">{metadata.artist}</p>
@@ -198,30 +187,22 @@ export function Player() {
 
       {/* BARRA DE VOLUMEN */}
       <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10">
-        <button onClick={handleToggleMute} className="text-white/70 hover:text-[#dd9933] transition-colors">
+        <button onClick={handleToggleMute} className="text-white/70 hover:text-[#dd9933]">
           {isMuted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
         </button>
-        <input 
-          type="range" min="0" max="1" step="0.01" 
-          value={volume} onChange={handleVolumeChange}
-          className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]"
-        />
+        <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
       </div>
 
-      {/* Controles Principales */}
       <div className="flex items-center gap-6 z-10">
         <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-lg" : "bg-zinc-900")}>
           <Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} />
         </button>
-        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl active:scale-95 transition-transform">
+        <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl active:scale-95">
           {isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}
         </button>
-        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900">
-          <Mic2 size={24} />
-        </button>
+        <button onClick={playSabor} className="p-4 rounded-2xl bg-zinc-900"><Mic2 size={24} /></button>
       </div>
 
-      {/* Redes y Compartir */}
       <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
         <div className="flex gap-6 text-white/70">
           <a href="https://instagram.com/mundialdesalsa" target="_blank" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
