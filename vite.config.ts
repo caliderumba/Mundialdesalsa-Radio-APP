@@ -8,29 +8,23 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
   return {
-    // CAMBIO IMPORTANTE: Ahora el base es '/' porque la App vivirá en la raíz de tu dominio
     base: '/', 
-    
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
+        includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico', 'logo-mundial.webp'], // Añadimos el logo aquí
         manifest: {
           name: 'MundialDeSalsa.Com - Radio',
           short_name: 'MundialDeSalsa',
           description: 'Radio en vivo, letras de canciones y todo sobre la cultura salsera desde Cali.',
-          theme_color: '#dd9933',
-          background_color: '#09090b',
+          theme_color: '#09090b', // Cambiado a negro para Splash Screen fluido
+          background_color: '#09090b', // Fondo negro puro
           display: 'standalone',
           display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'portrait',
-          categories: ['entertainment', 'music'],
-          // Ajustamos start_url y scope para que coincidan con la nueva raíz
-          start_url: './?utm_source=pwa&utm_medium=install&utm_campaign=app_salsa', 
-          scope: '/', 
           icons: [
             {
               src: 'pwa-192x192.png',
@@ -60,9 +54,6 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,json}'],
-          cleanupOutdatedCaches: true,
-          clientsClaim: true,
-          skipWaiting: true,
           navigateFallback: 'index.html'
         }
       })
@@ -74,9 +65,6 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
-    },
-    server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-    },
+    }
   };
 });
