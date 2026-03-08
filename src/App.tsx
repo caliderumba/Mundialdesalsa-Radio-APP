@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Analytics } from "@vercel/analytics/react";
 import { Player } from "./components/Player";
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
           </button>
         </div>
       )}
+      <Analytics />
     </main>
   );
 }
