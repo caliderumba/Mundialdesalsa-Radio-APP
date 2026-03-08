@@ -4,8 +4,7 @@ import webpush from 'web-push';
 import bodyParser from 'body-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import cron from 'node-cron'; // Asegúrate de haber hecho: npm install node-cron
-// Importamos el servicio de trivia que actualizamos anteriormente
+import cron from 'node-cron';
 import { getSalsaTrivia } from './services/geminiService';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,11 +25,10 @@ async function startServer() {
 
   app.use(bodyParser.json());
 
-  // Almacenamiento de suscripciones en memoria (se pierden al reiniciar el server)
-  // En producción, lo ideal sería guardarlas en una base de datos.
   let subscriptions: any[] = [];
 
-  // --- RUTAS DE NOTIFICACIONES PUSH ---
+  // --- 1. RUTAS DE LA API (Prioridad Máxima) ---
+  
   app.post('/api/subscribe', (req, res) => {
     const subscription = req.body;
     const exists = subscriptions.find(s => s.endpoint === subscription.endpoint);
@@ -40,7 +38,24 @@ async function startServer() {
     res.status(201).json({ message: 'Subscribed successfully' });
   });
 
-  // Función interna para enviar notificaciones a todos
+  app.get('/api/vapid-public-key', (req, res) => {
+    res.json({ publicKey: VAPID_PUBLIC_KEY });
+  });
+
+  app.get('/api/salsa-trivia', async (req, res) => {
+    try {
+      const trivia = await getSalsaTrivia();
+      // Forzamos el envío como JSON para que el navegador no se confunda
+      res.setHeader('Content-Type', 'application/json');
+      res.status(200).json({ trivia });
+    } catch (error) {
+      console.error('Error obteniendo trivia:', error);
+      res.status(500).json({ error: 'No se pudo obtener la cultura salsera' });
+    }
+  });
+
+  // --- 2. FUNCIÓN DE NOTIFICACIONES Y CRON JOB ---
+
   const broadcastNotification = (title: string, body: string) => {
     const payload = JSON.stringify({ 
       title, 
@@ -59,23 +74,6 @@ async function startServer() {
     });
   };
 
-  app.get('/api/vapid-public-key', (req, res) => {
-    res.json({ publicKey: VAPID_PUBLIC_KEY });
-  });
-
-  // --- RUTA: API PARA TRIVIA (Usada por el componente Player) ---
-  app.get('/api/salsa-trivia', async (req, res) => {
-    try {
-      const trivia = await getSalsaTrivia();
-      res.json({ trivia });
-    } catch (error) {
-      console.error('Error obteniendo trivia:', error);
-      res.status(500).json({ error: 'No se pudo obtener la cultura salsera' });
-    }
-  });
-
-  // --- CRON JOB: CADA HORA ENVÍA TRIVIA POR PUSH ---
-  // Se ejecuta al minuto 0 de cada hora (0 * * * *)
   cron.schedule('0 * * * *', async () => {
     console.log('[CRON] Iniciando generación de trivia horaria...');
     try {
@@ -87,7 +85,8 @@ async function startServer() {
     }
   });
 
-  // --- MIDDLEWARE DE VITE / PRODUCCIÓN ---
+  // --- 3. MIDDLEWARE DE VITE / PRODUCCIÓN (Al Final) ---
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -95,8 +94,16 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // Servir archivos estáticos de la carpeta dist
     app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res) => {
+
+    // Solo si la ruta NO empieza por /api/, enviamos el index.html
+    app.get(/^(?!\/api).+/, (req, res) => {
+      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    });
+    
+    // Backup para la ruta raíz
+    app.get('/', (req, res) => {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
