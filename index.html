@@ -26,28 +26,35 @@
     <link rel="apple-touch-icon" href="./pwa-192x192.png" />
 
     <style>
-      /* Estilos del Splash Screen */
-      #splash-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: #09090b;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 99999;
-        transition: opacity 0.5s ease-out, visibility 0.5s;
-      }
+/* Splash Screen Estilo Pro */
+  #splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #09090b;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-      .splash-logo {
-        width: 120px;
-        height: 120px;
-        filter: drop-shadow(0 0 15px rgba(221, 153, 51, 0.4));
-        animation: pulse-salsa 1.5s infinite ease-in-out;
-      }
+  #splash-logo {
+width: 85%; /* Aumenta este porcentaje si quieres que sea más grande */
+  max-width: 500px; /* Aumenta el tope máximo */
+  height: auto;
+  object-fit: contain;
+  /* Brillo suave para que resalte sobre el negro */
+  filter: drop-shadow(0 0 30px rgba(221, 153, 51, 0.4)); 
+}
+
+  @keyframes splash-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
 
       @keyframes pulse-salsa {
         0%, 100% { transform: scale(1); opacity: 0.8; }
@@ -69,25 +76,27 @@
         opacity: 0;
         visibility: hidden;
       }
+      
     </style>
   </head>
   <body>
     <div id="splash-screen">
-      <img src="./pwa-192x192.png" alt="MundialDeSalsa" class="splash-logo">
+      <img src="/logo-mundial.webp" id="splash-logo" alt="Cargando Mundial de Salsa...">
       <div class="splash-text">Mundial de Salsa</div>
     </div>
 
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <script>
-      // Quitar el splash cuando la App cargue
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          var splash = document.getElementById('splash-screen');
-          splash.classList.add('hidden-splash');
-        }, 1500); // Se muestra por 1.5 segundos para dar impacto
-      });
-    </script>
+<script type="module">
+    // Quitamos el splash cuando la App esté montada
+    window.addEventListener('load', () => {
+      const splash = document.getElementById('splash-screen');
+      setTimeout(() => {
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 600);
+      }, 1500); // 1.5 segundos para que luzca el logo
+    });
+  </script>
   </body>
 </html>
