@@ -56,7 +56,7 @@ export function Player() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  // --- LÓGICA DE LETRAS CONECTADA AL SERVIDOR ---
+  // --- LÓGICA DE LETRAS MEJORADA ---
   const fetchLyrics = async (artist: string, title: string) => {
     if (!title || title === "Mundial de Salsa") return;
     setLoadingLyrics(true);
@@ -65,13 +65,14 @@ export function Player() {
     try {
       // 1. Intentamos con la API pública rápida
       const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+      if (!res.ok) throw new Error("API Pública falló");
       const data = await res.json();
       if (data.lyrics) {
         setLyrics(data.lyrics);
         setLoadingLyrics(false);
         return;
       }
-      throw new Error();
+      throw new Error("No hay letras en API pública");
     } catch (err) {
       // 2. FALLBACK: Llamamos a NUESTRO propio servidor (Node.js + Gemini)
       try {
@@ -80,10 +81,13 @@ export function Player() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, artist })
         });
+        
+        if (!aiRes.ok) throw new Error("Servidor IA no responde");
+        
         const aiData = await aiRes.json();
         setLyrics(aiData.lyrics || "Letra no disponible por ahora. ¡A bailar igual!");
       } catch (e) {
-        setLyrics("Error al conectar con el servidor de letras.");
+        setLyrics("No se pudo conectar con el servidor de letras. Verifica tu conexión.");
       }
     } finally {
       setLoadingLyrics(false);
@@ -92,15 +96,19 @@ export function Player() {
 
   useEffect(() => {
     if (showLyrics) fetchLyrics(metadata.artist, metadata.title);
-  }, [showLyrics, metadata.title]);
+  }, [showLyrics, metadata.title, metadata.artist]);
 
+  // --- METADATA Y MEDIA SESSION ---
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
     eventSource.onmessage = async (event) => {
       try {
         const raw = JSON.parse(event.data);
-        const [artista = "Mundial de Salsa", cancion = "En Vivo"] = (raw.streamTitle || "").split(" - ");
-        if (cancion.trim() !== metadata.title) {
+        const [artistaRaw = "Mundial de Salsa", cancionRaw = "En Vivo"] = (raw.streamTitle || "").split(" - ");
+        const artista = artistaRaw.trim();
+        const cancion = cancionRaw.trim();
+
+        if (cancion !== metadata.title) {
           let cover = FALLBACK_COVER_URL;
           try {
             const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
@@ -108,13 +116,25 @@ export function Player() {
             const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
             if (imgUrl) cover = imgUrl;
           } catch (e) {}
-          const newSong = { id: Date.now().toString(), title: cancion.trim(), artist: artista.trim(), coverUrl: cover, timestamp: Date.now() };
+
+          const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
           setMetadata(newSong);
+          
           setHistory(prev => {
             const updated = [newSong, ...prev].slice(0, 15);
             localStorage.setItem("radio_history", JSON.stringify(updated));
             return updated;
           });
+
+          // Actualizar pantalla de bloqueo
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: cancion,
+              artist: artista,
+              album: 'Mundial de Salsa',
+              artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
+            });
+          }
         }
       } catch (err) {}
     };
@@ -128,10 +148,26 @@ export function Player() {
     }
   }, [volume, isMuted]);
 
+  // --- SISTEMA DE ALARMA ---
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      alarms.forEach(a => { 
+        if (a.enabled && a.time === timeStr && !isPlaying) {
+          handleTogglePlay();
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        }
+      });
+    }, 30000); // Revisa cada 30 segundos
+    return () => clearInterval(timer);
+  }, [alarms, isPlaying]);
+
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
-    if (isPlaying) audioRef.current.pause();
-    else { 
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else { 
       if (!audioContext) {
         const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
         const context = new AudioCtx();
@@ -205,7 +241,7 @@ export function Player() {
               <button onClick={() => setShowLyrics(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
             </div>
             <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center backdrop-blur-sm">
-              {loadingLyrics ? <div className="animate-pulse italic">Consultando el pregón con IA...</div> : lyrics}
+              {loadingLyrics ? <div className="animate-pulse italic text-[#dd9933]">Consultando el pregón con IA...</div> : lyrics}
             </div>
           </motion.div>
         )}
@@ -227,8 +263,8 @@ export function Player() {
             <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl text-sm text-zinc-200 leading-snug">
                Programa tu hora y despierta con la mejor salsa. La radio sonará sola.<span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta.</span>
             </div>
-            <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-3xl font-black mb-6 border border-[#dd9933] text-center" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
-            <div className="space-y-4">{alarms.map((alarm) => (<div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5"><span className="text-3xl font-black text-zinc-50">{alarm.time}</span><button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg">ELIMINAR</button></div>))}</div>
+            <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-3xl font-black mb-6 border border-[#dd9933] text-center text-white" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
+            <div className="space-y-4">{alarms.map((alarm) => (<div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5"><span className="text-3xl font-black text-zinc-50">{alarm.time}</span><button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg border border-red-500/20">ELIMINAR</button></div>))}</div>
           </motion.div>
         )}
       </AnimatePresence>
