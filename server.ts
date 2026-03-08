@@ -4,8 +4,9 @@ import webpush from 'web-push';
 import bodyParser from 'body-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// Importamos el servicio de Gemini que ya tienes creado
-import { getSongLyrics } from './services/geminiService';
+import cron from 'node-cron'; // Asegúrate de haber hecho: npm install node-cron
+// Importamos el servicio de trivia que actualizamos anteriormente
+import { getSalsaTrivia } from './services/geminiService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,7 +26,8 @@ async function startServer() {
 
   app.use(bodyParser.json());
 
-  // In-memory subscription storage
+  // Almacenamiento de suscripciones en memoria (se pierden al reiniciar el server)
+  // En producción, lo ideal sería guardarlas en una base de datos.
   let subscriptions: any[] = [];
 
   // --- RUTAS DE NOTIFICACIONES PUSH ---
@@ -38,43 +40,50 @@ async function startServer() {
     res.status(201).json({ message: 'Subscribed successfully' });
   });
 
-  app.post('/api/notify-all', (req, res) => {
-    const { title, body, icon, url } = req.body;
-    const payload = JSON.stringify({ title, body, icon, url });
+  // Función interna para enviar notificaciones a todos
+  const broadcastNotification = (title: string, body: string) => {
+    const payload = JSON.stringify({ 
+      title, 
+      body, 
+      icon: '/pwa-192x192.png',
+      badge: '/favicon.ico',
+      data: { url: 'https://radio.mundialdesalsa.com' }
+    });
 
-    const notifications = subscriptions.map(subscription => {
-      return webpush.sendNotification(subscription, payload).catch(err => {
-        console.error('Error sending notification:', err);
+    subscriptions.forEach(subscription => {
+      webpush.sendNotification(subscription, payload).catch(err => {
         if (err.statusCode === 410 || err.statusCode === 404) {
           subscriptions = subscriptions.filter(s => s.endpoint !== subscription.endpoint);
         }
       });
     });
-
-    Promise.all(notifications).then(() => {
-      res.status(200).json({ message: 'Notifications sent' });
-    });
-  });
+  };
 
   app.get('/api/vapid-public-key', (req, res) => {
     res.json({ publicKey: VAPID_PUBLIC_KEY });
   });
 
-  // --- NUEVA RUTA: API PARA LETRAS (Cerebro de la App) ---
-  app.post('/api/lyrics', async (req, res) => {
-    const { title, artist } = req.body;
-    
-    if (!title || !artist) {
-      return res.status(400).json({ error: 'Título y Artista son requeridos' });
-    }
-
+  // --- RUTA: API PARA TRIVIA (Usada por el componente Player) ---
+  app.get('/api/salsa-trivia', async (req, res) => {
     try {
-      // Llamamos a la función de tu geminiService.ts
-      const lyrics = await getSongLyrics(title, artist);
-      res.json({ lyrics });
+      const trivia = await getSalsaTrivia();
+      res.json({ trivia });
     } catch (error) {
-      console.error('Error procesando letras en el servidor:', error);
-      res.status(500).json({ error: 'No se pudo obtener la letra de la IA' });
+      console.error('Error obteniendo trivia:', error);
+      res.status(500).json({ error: 'No se pudo obtener la cultura salsera' });
+    }
+  });
+
+  // --- CRON JOB: CADA HORA ENVÍA TRIVIA POR PUSH ---
+  // Se ejecuta al minuto 0 de cada hora (0 * * * *)
+  cron.schedule('0 * * * *', async () => {
+    console.log('[CRON] Iniciando generación de trivia horaria...');
+    try {
+      const triviaFresh = await getSalsaTrivia();
+      broadcastNotification("¡Sabías que de la Salsa!", triviaFresh);
+      console.log('[CRON] Notificación horaria enviada con éxito.');
+    } catch (error) {
+      console.error('[CRON] Error enviando trivia horaria:', error);
     }
   });
 
