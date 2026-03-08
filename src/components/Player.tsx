@@ -10,20 +10,11 @@ import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import confetti from "canvas-confetti";
 
-// CAMBIO MAESTRO: Importación compatible con @google/genai
-import * as GenAI from "@google/genai";
-
-// Firebase
-import { messaging } from "../firebase-config"; 
-import { getToken } from "firebase/messaging";
-
+// Constants
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
-
-// API Key segura
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 interface SongMetadata {
   id: string; title: string; artist: string; coverUrl: string; timestamp: number;
@@ -65,27 +56,38 @@ export function Player() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
+  // --- LÓGICA DE LETRAS CONECTADA AL SERVIDOR ---
   const fetchLyrics = async (artist: string, title: string) => {
     if (!title || title === "Mundial de Salsa") return;
     setLoadingLyrics(true);
     setLyrics("");
+    
     try {
-      const response = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
-      const data = await response.json();
-      if (data.lyrics) { setLyrics(data.lyrics); setLoadingLyrics(false); return; }
+      // 1. Intentamos con la API pública rápida
+      const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+      const data = await res.json();
+      if (data.lyrics) {
+        setLyrics(data.lyrics);
+        setLoadingLyrics(false);
+        return;
+      }
       throw new Error();
     } catch (err) {
-      // FALLBACK CON IA USANDO @google/genai
-      if (GEMINI_KEY && (GenAI as any).GoogleGenerativeAI) {
-        try {
-          const client = new (GenAI as any).GoogleGenerativeAI(GEMINI_KEY);
-          const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
-          const prompt = `Proporciona la letra de la canción "${title}" de "${artist}". Solo la letra, sin introducciones.`;
-          const result = await model.generateContent(prompt);
-          setLyrics(result.response.text());
-        } catch (e) { setLyrics("Letra no disponible temporalmente."); }
-      } else { setLyrics("Letra no disponible."); }
-    } finally { setLoadingLyrics(false); }
+      // 2. FALLBACK: Llamamos a NUESTRO propio servidor (Node.js + Gemini)
+      try {
+        const aiRes = await fetch('/api/lyrics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, artist })
+        });
+        const aiData = await aiRes.json();
+        setLyrics(aiData.lyrics || "Letra no disponible por ahora. ¡A bailar igual!");
+      } catch (e) {
+        setLyrics("Error al conectar con el servidor de letras.");
+      }
+    } finally {
+      setLoadingLyrics(false);
+    }
   };
 
   useEffect(() => {
@@ -170,7 +172,7 @@ export function Player() {
 
       {/* Control Volumen */}
       <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10 backdrop-blur-sm">
-        <button onClick={() => setIsMuted(!isMuted)} className="text-white/70 hover:text-[#dd9933]">
+        <button onClick={() => { setPrevVolume(volume); setIsMuted(!isMuted); }} className="text-white/70 hover:text-[#dd9933]">
           {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
@@ -184,26 +186,26 @@ export function Player() {
       </div>
 
       {/* Footer Social */}
-      <div className="flex flex-col items-center gap-6 z-10 w-full pt-4">
-        <div className="flex gap-6 text-white/70">
-          <a href="https://instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Instagram size={24} /></a>
+      <div className="flex flex-col items-center gap-6 z-10 w-full pt-4 text-white/70">
+        <div className="flex gap-6">
+          <a href="https://instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors"><Instagram size={24} /></a>
           <a href="https://facebook.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Facebook size={24} /></a>
           <a href="https://youtube.com/@mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Youtube size={24} /></a>
           <a href="https://mundialdesalsa.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933]"><Globe size={24} /></a>
         </div>
-        <button onClick={async () => { const msg = `🎶 ${metadata.title}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { navigator.clipboard.writeText(window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
+        <button onClick={async () => { const msg = `🎶 Escuchando: ${metadata.title} - ${metadata.artist}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { await navigator.clipboard.writeText(msg + " " + window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
       </div>
 
-      {/* MODALES */}
+      {/* MODALES CON GLASSMORPHISM */}
       <AnimatePresence>
         {showLyrics && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[110] p-6 flex flex-col backdrop-blur-xl">
             <div className="flex justify-between items-center mb-6">
-              <div><h3 className="text-xl font-black uppercase text-[#dd9933]">Letras</h3><p className="text-xs text-zinc-300">{metadata.title}</p></div>
+              <div><h3 className="text-xl font-black uppercase text-[#dd9933]">Letras</h3><p className="text-xs text-zinc-300">{metadata.title} - {metadata.artist}</p></div>
               <button onClick={() => setShowLyrics(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
             </div>
-            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center">
-              {loadingLyrics ? <div className="animate-pulse">Buscando...</div> : lyrics}
+            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center backdrop-blur-sm">
+              {loadingLyrics ? <div className="animate-pulse italic">Consultando el pregón con IA...</div> : lyrics}
             </div>
           </motion.div>
         )}
@@ -222,8 +224,8 @@ export function Player() {
         {showAlarms && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 backdrop-blur-xl">
             <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase text-[#dd9933]">Despertador Salsero</h3><button onClick={() => setShowAlarms(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
-            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl text-sm text-zinc-200">
-               Programa tu hora y despierta con salsa. La radio sonará sola.<span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta.</span>
+            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl text-sm text-zinc-200 leading-snug">
+               Programa tu hora y despierta con la mejor salsa. La radio sonará sola.<span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta.</span>
             </div>
             <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-3xl font-black mb-6 border border-[#dd9933] text-center" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
             <div className="space-y-4">{alarms.map((alarm) => (<div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5"><span className="text-3xl font-black text-zinc-50">{alarm.time}</span><button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg">ELIMINAR</button></div>))}</div>
