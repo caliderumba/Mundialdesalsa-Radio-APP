@@ -1,42 +1,39 @@
 import { GoogleGenerativeAI } from "@google/genai";
 
-// Acceso a la clave de API (Asegúrate de que esté en las Variables de Entorno de tu servidor)
+// Configuración de la API Key desde el entorno del servidor
 const apiKey = process.env.GEMINI_API_KEY || "";
-
-// Inicializamos el cliente de forma segura
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 /**
- * Obtiene la letra de una canción utilizando la IA de Gemini.
- * @param title Título de la canción
- * @param artist Nombre del artista
- * @returns La letra de la canción o un mensaje de error amigable.
+ * Genera un dato curioso de salsa usando Gemini 1.5 Flash.
+ * Diseñado para ser invocado cada hora por el servidor.
  */
-export async function getSongLyrics(title: string, artist: string): Promise<string> {
+export async function getSalsaTrivia(): Promise<string> {
   if (!genAI) {
-    console.error("Error: GEMINI_API_KEY no encontrada en el servidor.");
-    throw new Error("Servicio de IA no configurado");
+    console.error("Error: GEMINI_API_KEY no configurada.");
+    return "Cali es la Capital Mundial de la Salsa. ¡Disfruta el pregón!";
   }
 
   try {
-    // Usamos el modelo flash que es más rápido y eficiente para texto
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = `Actúa como un experto en salsa. Proporciona la letra original de la canción "${title}" de "${artist}". 
+    const prompt = `Actúa como un experto historiador de salsa de Cali. 
+    Genera un dato curioso, breve y fascinante sobre la salsa, sus artistas icónicos o la cultura salsera en Cali.
+    
     REGLAS ESTRICTAS:
-    1. Devuelve SOLAMENTE la letra de la canción.
-    2. No incluyas "Aquí tienes la letra", ni títulos, ni notas al final.
-    3. Si no conoces la letra exacta, responde únicamente: "Letra no disponible".`;
+    1. Máximo 140 caracteres (estilo notificación).
+    2. Usa un tono con "sabor" caleño pero profesional.
+    3. No uses introducciones como "Sabías que" o "Hola". Ve directo al dato.
+    4. Responde ÚNICAMENTE el texto del dato curioso.
+    5. No inventes datos, usa hechos reales de la historia de la música.`;
 
     const result = await model.generateContent(prompt);
     const response = result.response;
-    const text = response.text();
+    const text = response.text().trim();
 
-    // Limpieza básica por si la IA agrega espacios o comillas extra
-    return text.trim() || "Letra no disponible";
-
+    return text || "La salsa es el latido de Cali. ¡A azotar baldosa!";
   } catch (error) {
-    console.error("Error al consultar Gemini:", error);
-    return "Error al obtener la letra de la IA.";
+    console.error("Error al generar trivia con Gemini:", error);
+    return "Cali es Cali, lo demás es loma. ¡Escucha el mejor sabor!";
   }
 }
