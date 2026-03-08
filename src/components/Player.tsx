@@ -15,6 +15,8 @@ const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
+// Tu clave pública VAPID del servidor
+const VAPID_PUBLIC_KEY = "BPzkZUS_fjliAVsX9WeRhmoA1lpcDgPzgtxrW_y1PIkJbLg0yJOobmWKJNQMftxVypjdB53z6FKp2c-SxB3I1FY";
 
 interface SongMetadata {
   id: string; title: string; artist: string; coverUrl: string; timestamp: number;
@@ -56,38 +58,63 @@ export function Player() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  // --- LÓGICA DE LETRAS MEJORADA ---
+  // --- LÓGICA DE NOTIFICACIONES PUSH ---
+  const subscribeToNotifications = async () => {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Necesitamos tu permiso para avisarte de los especiales de salsa.');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: VAPID_PUBLIC_KEY
+      });
+
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      });
+
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      alert('¡Sabor! Ahora recibirás nuestras alertas salseras.');
+      
+    } catch (error) {
+      console.error('Error al suscribir:', error);
+      alert('Hubo un problema con la suscripción. Intenta desde un móvil o Chrome.');
+    }
+  };
+
+  // --- LÓGICA DE LETRAS CON FALLBACK A SERVIDOR ---
   const fetchLyrics = async (artist: string, title: string) => {
     if (!title || title === "Mundial de Salsa") return;
     setLoadingLyrics(true);
     setLyrics("");
     
     try {
-      // 1. Intentamos con la API pública rápida
       const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
-      if (!res.ok) throw new Error("API Pública falló");
+      if (!res.ok) throw new Error();
       const data = await res.json();
       if (data.lyrics) {
         setLyrics(data.lyrics);
         setLoadingLyrics(false);
         return;
       }
-      throw new Error("No hay letras en API pública");
+      throw new Error();
     } catch (err) {
-      // 2. FALLBACK: Llamamos a NUESTRO propio servidor (Node.js + Gemini)
       try {
         const aiRes = await fetch('/api/lyrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, artist })
         });
-        
-        if (!aiRes.ok) throw new Error("Servidor IA no responde");
-        
         const aiData = await aiRes.json();
         setLyrics(aiData.lyrics || "Letra no disponible por ahora. ¡A bailar igual!");
       } catch (e) {
-        setLyrics("No se pudo conectar con el servidor de letras. Verifica tu conexión.");
+        setLyrics("Error al conectar con el servidor de letras.");
       }
     } finally {
       setLoadingLyrics(false);
@@ -98,7 +125,7 @@ export function Player() {
     if (showLyrics) fetchLyrics(metadata.artist, metadata.title);
   }, [showLyrics, metadata.title, metadata.artist]);
 
-  // --- METADATA Y MEDIA SESSION ---
+  // --- METADATA Y PANTALLA DE BLOQUEO ---
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
     eventSource.onmessage = async (event) => {
@@ -126,12 +153,9 @@ export function Player() {
             return updated;
           });
 
-          // Actualizar pantalla de bloqueo
           if ('mediaSession' in navigator) {
             navigator.mediaSession.metadata = new MediaMetadata({
-              title: cancion,
-              artist: artista,
-              album: 'Mundial de Salsa',
+              title: cancion, artist: artista, album: 'Mundial de Salsa',
               artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
             });
           }
@@ -159,7 +183,7 @@ export function Player() {
           confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         }
       });
-    }, 30000); // Revisa cada 30 segundos
+    }, 30000);
     return () => clearInterval(timer);
   }, [alarms, isPlaying]);
 
@@ -183,9 +207,14 @@ export function Player() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6 space-y-8 overflow-hidden">
-      {/* Header */}
+      {/* Header con Campana Activa */}
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-        <div className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg"><Bell className="text-white w-6 h-6" /></div>
+        <button 
+          onClick={subscribeToNotifications}
+          className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform cursor-pointer"
+        >
+          <Bell className="text-white w-6 h-6" />
+        </button>
         <div className="flex items-center space-x-3">
           <button onClick={() => setShowLyrics(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933] transition-all"><FileText size={20} /></button>
           <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933] transition-all"><AlarmClock size={20} /></button>
@@ -232,7 +261,7 @@ export function Player() {
         <button onClick={async () => { const msg = `🎶 Escuchando: ${metadata.title} - ${metadata.artist}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { await navigator.clipboard.writeText(msg + " " + window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
       </div>
 
-      {/* MODALES CON GLASSMORPHISM */}
+      {/* MODALES */}
       <AnimatePresence>
         {showLyrics && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[110] p-6 flex flex-col backdrop-blur-xl">
