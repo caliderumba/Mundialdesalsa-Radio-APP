@@ -1,15 +1,18 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Usamos la API Key desde las variables de entorno del servidor
+const apiKey = process.env.GEMINI_API_KEY || "";
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-export async function getRadioInfo() {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: "Find the official streaming URL (MP3/AAC stream), official website, and social media links (Facebook, Instagram, Twitter/X) for the radio station 'Mundial de Salsa'. Also, try to find if they have an API or a way to get the current song playing.",
-    config: {
-      tools: [{ googleSearch: {} }],
-    },
-  });
+export async function getSongLyrics(title: string, artist: string) {
+  if (!genAI) throw new Error("API Key no configurada");
 
-  return response.text;
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const prompt = `Proporciona la letra de la canción de salsa "${title}" del artista "${artist}". 
+  Devuelve estrictamente solo la letra, sin introducciones ni comentarios. 
+  Si no la encuentras, responde: "Letra no disponible".`;
+
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  return response.text();
 }
