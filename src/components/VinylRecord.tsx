@@ -10,11 +10,10 @@ interface VinylRecordProps {
 export function VinylRecord({ isPlaying, coverUrl, className }: VinylRecordProps) {
   return (
     <div className={cn("relative w-64 h-64 md:w-80 md:h-80 flex items-center justify-center", className)}>
+      
       {/* Turntable Platter (The base under the vinyl) */}
       <div className="absolute inset-[-12px] rounded-full bg-zinc-900 border-[6px] border-zinc-800 shadow-[0_0_60px_rgba(0,0,0,0.9)] flex items-center justify-center">
-        {/* Brand color glow */}
         <div className="absolute inset-0 rounded-full bg-[#dd9933]/5 blur-2xl" />
-        {/* Metallic edge detail - Stroboscope dots effect */}
         <div className="absolute inset-0 rounded-full border-2 border-zinc-700/50 border-dashed opacity-30" />
         <div className="absolute inset-1 rounded-full border border-white/5" />
       </div>
@@ -33,19 +32,14 @@ export function VinylRecord({ isPlaying, coverUrl, className }: VinylRecordProps
         {/* Vinyl Sheen / Reflection Effect */}
         <div className="absolute inset-0 opacity-20 pointer-events-none bg-[conic-gradient(from_0deg,transparent_0%,white_10%,transparent_20%,transparent_50%,white_60%,transparent_70%)]" />
         
-        {/* Inner shadow for depth */}
-        <div className="absolute inset-0 rounded-full shadow-[inset_0_0_40px_rgba(0,0,0,0.9)]" />
-        
         {/* Grooves */}
         <div className="absolute inset-0 rounded-full border-[12px] border-zinc-800/40" />
-        <div className="absolute inset-4 rounded-full border-[1px] border-zinc-700/20" />
-        <div className="absolute inset-8 rounded-full border-[1px] border-zinc-700/20" />
-        <div className="absolute inset-12 rounded-full border-[1px] border-zinc-700/20" />
-        <div className="absolute inset-16 rounded-full border-[1px] border-zinc-700/20" />
-        <div className="absolute inset-20 rounded-full border-[1px] border-zinc-700/20" />
-        
-        {/* Album Art / Center Label */}
-        <div className="relative w-1/3 h-1/3 rounded-full bg-zinc-800 overflow-hidden border-4 border-black shadow-inner z-10">
+        {[4, 8, 12, 16, 20, 24].map((dist) => (
+          <div key={dist} className={`absolute inset-${dist} rounded-full border-[1px] border-zinc-700/10`} />
+        ))}
+
+        {/* --- CAMBIO AQUÍ: Carátula agrandada al 50% --- */}
+        <div className="relative w-1/2 h-1/2 rounded-full bg-zinc-800 overflow-hidden border-2 border-black/50 shadow-[0_0_20px_rgba(0,0,0,0.8)] z-10 flex items-center justify-center">
           {coverUrl ? (
             <img
               src={coverUrl}
@@ -54,12 +48,16 @@ export function VinylRecord({ isPlaying, coverUrl, className }: VinylRecordProps
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-[#dd9933] text-white font-bold text-xl">
+            <div className="w-full h-full flex items-center justify-center bg-[#dd9933] text-white font-bold text-3xl">
               MS
             </div>
           )}
-          {/* Center Hole */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-zinc-900 rounded-full border border-zinc-700" />
+          
+          {/* Overlay para suavizar la carátula y darle aspecto de papel/etiqueta */}
+          <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+
+          {/* Center Hole mejorado */}
+          <div className="absolute w-4 h-4 bg-zinc-950 rounded-full border border-zinc-800 shadow-inner z-20" />
         </div>
       </motion.div>
 
@@ -75,9 +73,8 @@ export function VinylRecord({ isPlaying, coverUrl, className }: VinylRecordProps
           <div className="absolute top-[20%] right-[20%] w-[70%] h-1 md:h-2 bg-zinc-300 rounded-full shadow-lg origin-right" 
                style={{ transform: 'rotate(-45deg)' }}>
             
-            {/* Headshell (The part with the needle) */}
+            {/* Headshell */}
             <div className="absolute -left-1 md:-left-2 -top-1 md:-top-2 w-6 h-4 md:w-10 md:h-6 bg-zinc-800 rounded-sm border border-zinc-600 flex items-center justify-center">
-              {/* Stylus / Needle tip - High visibility color */}
               <div className="w-0.5 h-2 md:w-1 md:h-4 bg-[#dd9933] rounded-full shadow-[0_0_8px_#dd9933]" />
             </div>
 
