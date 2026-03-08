@@ -9,12 +9,23 @@ import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import confetti from "canvas-confetti";
 
-// Constants (Ajustadas según tu script original)
+// Constants
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
 const FALLBACK_COVER_URL = "/pwa-512x512.png";
 const VAPID_PUBLIC_KEY = "BPzkZUS_fjliAVsX9WeRhmoA1lpcDgPzgtxrW_y1PIkJbLg0yJOobmWKJNQMftxVypjdB53z6FKp2c-SxB3I1FY";
+
+const DATOS_SALSEROS = [
+  "El término 'Salsa' se popularizó en los 70 en Nueva York por el sello Fania Records.",
+  "Héctor Lavoe era conocido como 'El Cantante de los Cantantes'.",
+  "Cali es reconocida como la 'Capital Mundial de la Salsa' por su estilo único de baile rápido.",
+  "El Gran Combo de Puerto Rico es apodado 'La Universidad de la Salsa'.",
+  "Celia Cruz popularizó su famoso grito '¡Azúcar!' como respuesta a un mesero que le ofreció café.",
+  "Richie Ray y Bobby Cruz fueron pioneros en fusionar la salsa con música clásica (el 'Bugalú').",
+  "La ciudad de Cali tiene el récord de la mayor cantidad de escuelas de salsa en el mundo.",
+  "El 'Joe' Arroyo compuso 'Rebelión' basándose en la historia de la esclavitud en Cartagena."
+];
 
 interface SongMetadata {
   id: string; title: string; artist: string; coverUrl: string; timestamp: number;
@@ -48,11 +59,17 @@ export function Player() {
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [isCencerroShaking, setIsCencerroShaking] = useState(false);
+  const [datoCurioso, setDatoCurioso] = useState("");
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const cowbellRef = useRef<HTMLAudioElement>(null);
 
-  // --- LÓGICA DE NOTIFICACIONES PUSH ---
+  // Elegir un dato curioso al azar al cargar
+  useEffect(() => {
+    const indice = Math.floor(Math.random() * DATOS_SALSEROS.length);
+    setDatoCurioso(DATOS_SALSEROS[indice]);
+  }, []);
+
   const subscribeToNotifications = async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -73,23 +90,18 @@ export function Player() {
     } catch (error) { console.error('Error suscripción:', error); }
   };
 
-  // --- LÓGICA DE METADATOS Y CARÁTULAS (MODO EXACTO WEB) ---
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
-    
     eventSource.onmessage = async (e) => {
       try {
         const raw = JSON.parse(e.data);
         const fullTitle = raw.streamTitle || "Cali Radio Salsa";
-        
-        // Lógica de split exacta de tu script
         const partes = fullTitle.split("-").map((s: string) => s.trim());
         const artista = partes[0] || "Cali Radio Salsa";
         const cancion = partes[1] || "En Vivo";
 
         if (fullTitle !== metadata.title + " - " + metadata.artist) {
           let cover = FALLBACK_COVER_URL;
-
           if (partes.length >= 2) {
             try {
               const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
@@ -98,16 +110,13 @@ export function Player() {
               if (imgUrl && imgUrl !== "") cover = imgUrl;
             } catch (err) { cover = FALLBACK_COVER_URL; }
           }
-
           const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
           setMetadata(newSong);
-          
           setHistory(prev => {
             const updated = [newSong, ...prev].slice(0, 15);
             localStorage.setItem("radio_history", JSON.stringify(updated));
             return updated;
           });
-
           if ('mediaSession' in navigator) {
             navigator.mediaSession.metadata = new MediaMetadata({
               title: cancion, artist: artista, album: 'Mundial de Salsa',
@@ -117,11 +126,9 @@ export function Player() {
         }
       } catch (err) { console.error("Error metadatos:", err); }
     };
-
     return () => eventSource.close();
   }, [metadata.title]);
 
-  // --- AUDIO Y ALARMAS ---
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = isMuted ? 0 : volume;
@@ -187,7 +194,6 @@ export function Player() {
         <p className="text-[#dd9933] font-bold uppercase tracking-widest text-sm truncate">{metadata.artist}</p>
       </div>
 
-      {/* Control Volumen */}
       <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10 backdrop-blur-sm">
         <button onClick={() => setIsMuted(!isMuted)} className="text-white/70 hover:text-[#dd9933]">
           {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
@@ -195,14 +201,24 @@ export function Player() {
         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
       </div>
 
-      {/* Controles Principales */}
       <div className="flex items-center gap-6 z-10">
         <button onClick={() => setIsFiestaMode(!isFiestaMode)} className={cn("p-4 rounded-2xl transition-all", isFiestaMode ? "bg-[#dd9933] shadow-lg" : "bg-zinc-900")}><Zap size={24} className={isFiestaMode ? "animate-pulse" : ""} /></button>
         <button onClick={handleTogglePlay} className="w-20 h-20 rounded-full bg-[#dd9933] flex items-center justify-center shadow-2xl active:scale-95 transition-transform">{isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}</button>
         <button onClick={() => { if(cowbellRef.current){cowbellRef.current.play(); setIsCencerroShaking(true); setTimeout(()=>setIsCencerroShaking(false), 300); confetti({particleCount:40}); } }} className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 transition-colors"><Mic2 size={24} /></button>
       </div>
 
-      {/* Footer Social */}
+      {/* SECCIÓN CULTURA SALSERA */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-xs bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-2xl text-center z-10 backdrop-blur-sm"
+      >
+        <p className="text-[10px] font-black uppercase tracking-widest text-[#dd9933] mb-1">Cultura Salsera</p>
+        <p className="text-xs text-zinc-300 italic leading-relaxed px-2">
+          "{datoCurioso}"
+        </p>
+      </motion.div>
+
       <div className="flex flex-col items-center gap-6 z-10 w-full pt-4 text-white/70">
         <div className="flex gap-6">
           <a href="https://instagram.com/mundialdesalsa" target="_blank" rel="noopener noreferrer" className="hover:text-[#dd9933] transition-colors"><Instagram size={24} /></a>
@@ -213,7 +229,6 @@ export function Player() {
         <button onClick={async () => { const msg = `🎶 Escuchando: ${metadata.title} - ${metadata.artist}`; if(navigator.share) await navigator.share({title:'Mundial de Salsa', text:msg, url:window.location.href}); else { await navigator.clipboard.writeText(msg + " " + window.location.href); alert('Link copiado'); } }} className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-8 py-3 rounded-full hover:bg-zinc-800 active:scale-95 transition-all shadow-lg"><Share2 size={18} className="text-[#dd9933]" /><span className="text-[10px] font-bold tracking-widest uppercase">Compartir Radio</span></button>
       </div>
 
-      {/* MODALES */}
       <AnimatePresence>
         {showHistory && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 overflow-y-auto backdrop-blur-xl">
