@@ -1,1 +1,8 @@
-
+const DATOS_SALSEROS = [
+  "¿Sabías que...? El término 'Salsa' se popularizó en los 70 en Nueva York por el sello Fania Records.",
+  "¿Sabías que...? Héctor Lavoe era conocido como 'El Cantante de los Cantantes'.",
+  "¿Sabías que...? Cali es reconocida como la 'Capital Mundial de la Salsa' por su estilo único de baile rápido.",
+  "¿Sabías que...? El Gran Combo de Puerto Rico es apodado 'La Universidad de la Salsa'.",
+  "¿Sabías que...? Celia Cruz popularizó su famoso grito '¡Azúcar!' como una respuesta a un mesero que le ofreció café.",
+  "¿Sabías que...? Richie Ray y Bobby Cruz fueron pioneros en fusionar la salsa con música clásica (el 'Bugalú')."
+];
