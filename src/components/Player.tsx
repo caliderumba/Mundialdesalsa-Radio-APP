@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
-  Play, Pause, History, AlarmClock, Bell, Zap, Mic2, MonitorSmartphone,
-  Share2, Instagram, Facebook, Youtube, Globe, Volume2, Volume1, VolumeX, X,
-  FileText 
+  Play, Pause, History, AlarmClock, Bell, Zap, Mic2, Share2, 
+  Instagram, Facebook, Youtube, Globe, Volume2, VolumeX, X 
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VinylRecord } from "./VinylRecord";
@@ -10,12 +9,11 @@ import { Visualizer } from "./Visualizer";
 import { cn } from "@/src/lib/utils";
 import confetti from "canvas-confetti";
 
-// Constants
+// Constants (Ajustadas según tu script original)
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
-const FALLBACK_COVER_URL = "https://mundialdesalsa.com/wp-content/uploads/2023/12/Mundialdesalsa2026.webp";
-// Tu clave pública VAPID del servidor
+const FALLBACK_COVER_URL = "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp";
 const VAPID_PUBLIC_KEY = "BPzkZUS_fjliAVsX9WeRhmoA1lpcDgPzgtxrW_y1PIkJbLg0yJOobmWKJNQMftxVypjdB53z6FKp2c-SxB3I1FY";
 
 interface SongMetadata {
@@ -27,9 +25,8 @@ export function Player() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
-  const [prevVolume, setPrevVolume] = useState(0.8);
   const [metadata, setMetadata] = useState<SongMetadata>({
-    id: "1", title: "Mundial de Salsa", artist: "Cali - Colombia",
+    id: "1", title: "Cali Radio Salsa", artist: "En Vivo",
     coverUrl: FALLBACK_COVER_URL, timestamp: Date.now()
   });
   
@@ -45,11 +42,8 @@ export function Player() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [lyrics, setLyrics] = useState("");
-  const [loadingLyrics, setLoadingLyrics] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAlarms, setShowAlarms] = useState(false);
-  const [showLyrics, setShowLyrics] = useState(false);
   const [isFiestaMode, setIsFiestaMode] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
@@ -62,87 +56,48 @@ export function Player() {
   const subscribeToNotifications = async () => {
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        alert('Necesitamos tu permiso para avisarte de los especiales de salsa.');
-        return;
-      }
-
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY
-      });
-
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription)
-      });
-
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      alert('¡Sabor! Ahora recibirás nuestras alertas salseras.');
-      
-    } catch (error) {
-      console.error('Error al suscribir:', error);
-      alert('Hubo un problema con la suscripción. Intenta desde un móvil o Chrome.');
-    }
-  };
-
-  // --- LÓGICA DE LETRAS CON FALLBACK A SERVIDOR ---
-  const fetchLyrics = async (artist: string, title: string) => {
-    if (!title || title === "Mundial de Salsa") return;
-    setLoadingLyrics(true);
-    setLyrics("");
-    
-    try {
-      const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      if (data.lyrics) {
-        setLyrics(data.lyrics);
-        setLoadingLyrics(false);
-        return;
-      }
-      throw new Error();
-    } catch (err) {
-      try {
-        const aiRes = await fetch('/api/lyrics', {
+      if (permission === 'granted') {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: VAPID_PUBLIC_KEY
+        });
+        await fetch('/api/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, artist })
+          body: JSON.stringify(subscription)
         });
-        const aiData = await aiRes.json();
-        setLyrics(aiData.lyrics || "Letra no disponible por ahora. ¡A bailar igual!");
-      } catch (e) {
-        setLyrics("Error al conectar con el servidor de letras.");
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        alert('¡Sabor! Notificaciones activadas.');
       }
-    } finally {
-      setLoadingLyrics(false);
-    }
+    } catch (error) { console.error('Error suscripción:', error); }
   };
 
-  useEffect(() => {
-    if (showLyrics) fetchLyrics(metadata.artist, metadata.title);
-  }, [showLyrics, metadata.title, metadata.artist]);
-
-  // --- METADATA Y PANTALLA DE BLOQUEO ---
+  // --- LÓGICA DE METADATOS Y CARÁTULAS (MODO EXACTO WEB) ---
   useEffect(() => {
     const eventSource = new EventSource(ZENO_METADATA_URL);
-    eventSource.onmessage = async (event) => {
+    
+    eventSource.onmessage = async (e) => {
       try {
-        const raw = JSON.parse(event.data);
-        const [artistaRaw = "Mundial de Salsa", cancionRaw = "En Vivo"] = (raw.streamTitle || "").split(" - ");
-        const artista = artistaRaw.trim();
-        const cancion = cancionRaw.trim();
+        const raw = JSON.parse(e.data);
+        const fullTitle = raw.streamTitle || "Cali Radio Salsa";
+        
+        // Lógica de split exacta de tu script
+        const partes = fullTitle.split("-").map((s: string) => s.trim());
+        const artista = partes[0] || "Cali Radio Salsa";
+        const cancion = partes[1] || "En Vivo";
 
-        if (cancion !== metadata.title) {
+        if (fullTitle !== metadata.title + " - " + metadata.artist) {
           let cover = FALLBACK_COVER_URL;
-          try {
-            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
-            const data = await res.json();
-            const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
-            if (imgUrl) cover = imgUrl;
-          } catch (e) {}
+
+          if (partes.length >= 2) {
+            try {
+              const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
+              const data = await res.json();
+              const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
+              if (imgUrl && imgUrl !== "") cover = imgUrl;
+            } catch (err) { cover = FALLBACK_COVER_URL; }
+          }
 
           const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
           setMetadata(newSong);
@@ -160,19 +115,19 @@ export function Player() {
             });
           }
         }
-      } catch (err) {}
+      } catch (err) { console.error("Error metadatos:", err); }
     };
+
     return () => eventSource.close();
   }, [metadata.title]);
 
+  // --- AUDIO Y ALARMAS ---
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = isMuted ? 0 : volume;
-      audioRef.current.muted = isMuted;
     }
   }, [volume, isMuted]);
 
-  // --- SISTEMA DE ALARMA ---
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -197,6 +152,7 @@ export function Player() {
         const context = new AudioCtx();
         const src = context.createMediaElementSource(audioRef.current);
         const an = context.createAnalyser();
+        an.fftSize = 64; 
         src.connect(an); an.connect(context.destination);
         setAudioContext(context); setAnalyser(an);
       }
@@ -207,16 +163,12 @@ export function Player() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6 space-y-8 overflow-hidden">
-      {/* Header con Campana Activa */}
+      {/* Header */}
       <div className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-        <button 
-          onClick={subscribeToNotifications}
-          className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform cursor-pointer"
-        >
+        <button onClick={subscribeToNotifications} className="w-10 h-10 bg-[#dd9933] rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
           <Bell className="text-white w-6 h-6" />
         </button>
         <div className="flex items-center space-x-3">
-          <button onClick={() => setShowLyrics(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933] transition-all"><FileText size={20} /></button>
           <button onClick={() => setShowAlarms(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933] transition-all"><AlarmClock size={20} /></button>
           <button onClick={() => setShowHistory(true)} className="p-3 rounded-full bg-zinc-900/80 border border-white/5 backdrop-blur-md hover:text-[#dd9933] transition-all"><History size={20} /></button>
         </div>
@@ -237,7 +189,7 @@ export function Player() {
 
       {/* Control Volumen */}
       <div className="flex items-center gap-4 w-full max-w-xs bg-zinc-900/40 p-3 rounded-2xl border border-white/5 z-10 backdrop-blur-sm">
-        <button onClick={() => { setPrevVolume(volume); setIsMuted(!isMuted); }} className="text-white/70 hover:text-[#dd9933]">
+        <button onClick={() => setIsMuted(!isMuted)} className="text-white/70 hover:text-[#dd9933]">
           {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#dd9933]" />
@@ -263,20 +215,6 @@ export function Player() {
 
       {/* MODALES */}
       <AnimatePresence>
-        {showLyrics && (
-          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[110] p-6 flex flex-col backdrop-blur-xl">
-            <div className="flex justify-between items-center mb-6">
-              <div><h3 className="text-xl font-black uppercase text-[#dd9933]">Letras</h3><p className="text-xs text-zinc-300">{metadata.title} - {metadata.artist}</p></div>
-              <button onClick={() => setShowLyrics(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto bg-zinc-950/40 p-5 rounded-2xl border border-white/5 italic text-zinc-100 whitespace-pre-wrap text-center backdrop-blur-sm">
-              {loadingLyrics ? <div className="animate-pulse italic text-[#dd9933]">Consultando el pregón con IA...</div> : lyrics}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {showHistory && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 overflow-y-auto backdrop-blur-xl">
             <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black uppercase">Historial</h3><button onClick={() => setShowHistory(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
@@ -289,8 +227,8 @@ export function Player() {
         {showAlarms && (
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 bg-black/60 z-[100] p-6 backdrop-blur-xl">
             <div className="flex justify-between items-center mb-4"><h3 className="text-2xl font-black uppercase text-[#dd9933]">Despertador Salsero</h3><button onClick={() => setShowAlarms(false)} className="p-2 bg-zinc-900/80 rounded-full"><X /></button></div>
-            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl text-sm text-zinc-200 leading-snug">
-               Programa tu hora y despierta con la mejor salsa. La radio sonará sola.<span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta.</span>
+            <div className="mb-6 bg-[#dd9933]/10 border border-[#dd9933]/20 p-4 rounded-xl text-sm text-zinc-200">
+               Programa tu hora y despierta con la mejor salsa. <span className="block mt-2 text-[10px] text-zinc-400 italic">* Mantén la app abierta.</span>
             </div>
             <input type="time" className="w-full p-4 bg-zinc-950/50 rounded-xl text-3xl font-black mb-6 border border-[#dd9933] text-center text-white" onKeyDown={(e) => { if (e.key === 'Enter') { const val = (e.target as any).value; const newAl = { id: Date.now().toString(), time: val, enabled: true }; setAlarms([...alarms, newAl]); localStorage.setItem("radio_alarms", JSON.stringify([...alarms, newAl])); } }} />
             <div className="space-y-4">{alarms.map((alarm) => (<div key={alarm.id} className="flex justify-between items-center bg-zinc-950/40 p-4 rounded-xl border border-white/5"><span className="text-3xl font-black text-zinc-50">{alarm.time}</span><button onClick={() => { const up = alarms.filter(a => a.id !== alarm.id); setAlarms(up); localStorage.setItem("radio_alarms", JSON.stringify(up)); }} className="text-red-400 text-xs font-bold px-3 py-1 bg-red-500/10 rounded-lg border border-red-500/20">ELIMINAR</button></div>))}</div>
