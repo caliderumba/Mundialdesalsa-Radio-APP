@@ -13,7 +13,7 @@ import confetti from "canvas-confetti";
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
 const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
-const FALLBACK_COVER_URL = "https://caliradiosalsa.com/wp-content/uploads/2025/07/caratula-respaldo.webp";
+const FALLBACK_COVER_URL = "/pwa-512x512.png";
 const VAPID_PUBLIC_KEY = "BPzkZUS_fjliAVsX9WeRhmoA1lpcDgPzgtxrW_y1PIkJbLg0yJOobmWKJNQMftxVypjdB53z6FKp2c-SxB3I1FY";
 
 interface SongMetadata {
