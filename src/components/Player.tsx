@@ -12,9 +12,14 @@ import confetti from "canvas-confetti";
 // Constants
 const STREAM_URL = "https://stream.zeno.fm/kkertu70mm5tv";
 const ZENO_METADATA_URL = "https://api.zeno.fm/mounts/metadata/subscribe/kkertu70mm5tv";
-const API_KEY_LASTFM = "f5039be7c53bb811b439652bc75ced48";
+const API_KEY_LASTFM = import.meta.env.VITE_LASTFM_API_KEY || "";
 const FALLBACK_COVER_URL = "/pwa-512x512.png";
-const VAPID_PUBLIC_KEY = "BPzkZUS_fjliAVsX9WeRhmoA1lpcDgPzgtxrW_y1PIkJbLg0yJOobmWKJNQMftxVypjdB53z6FKp2c-SxB3I1FY";
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+
+// Validate required environment variables at runtime
+if (!VAPID_PUBLIC_KEY) {
+  console.warn('VAPID_PUBLIC_KEY is not set. Push notifications will not work.');
+}
 
 interface SongMetadata {
   id: string; title: string; artist: string; coverUrl: string; timestamp: number;
@@ -94,42 +99,69 @@ export function Player() {
 
   // --- METADATOS Y CARÁTULAS ---
   useEffect(() => {
-    const eventSource = new EventSource(ZENO_METADATA_URL);
-    eventSource.onmessage = async (e) => {
-      try {
-        const raw = JSON.parse(e.data);
-        const fullTitle = raw.streamTitle || "Cali Radio Salsa";
-        const partes = fullTitle.split("-").map((s: string) => s.trim());
-        const artista = partes[0] || "Cali Radio Salsa";
-        const cancion = partes[1] || "En Vivo";
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
 
-        if (fullTitle !== metadata.title + " - " + metadata.artist) {
-          let cover = FALLBACK_COVER_URL;
-          if (partes.length >= 2) {
-            try {
-              const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
-              const data = await res.json();
-              const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
-              if (imgUrl && imgUrl !== "") cover = imgUrl;
-            } catch (err) { cover = FALLBACK_COVER_URL; }
-          }
-          const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
-          setMetadata(newSong);
-          setHistory(prev => {
-            const updated = [newSong, ...prev].slice(0, 15);
-            localStorage.setItem("radio_history", JSON.stringify(updated));
-            return updated;
-          });
-          if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-              title: cancion, artist: artista, album: 'Mundial de Salsa',
-              artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
+    const connectEventSource = () => {
+      eventSource = new EventSource(ZENO_METADATA_URL);
+      
+      eventSource.onopen = () => {
+        console.log('EventSource connected');
+      };
+
+      eventSource.onerror = (err) => {
+        console.error('EventSource error:', err);
+        eventSource?.close();
+        // Reconnect after 5 seconds on error
+        reconnectTimeout = setTimeout(connectEventSource, 5000);
+      };
+      
+      eventSource.onmessage = async (e) => {
+        try {
+          const raw = JSON.parse(e.data);
+          const fullTitle = raw.streamTitle || "Cali Radio Salsa";
+          const partes = fullTitle.split("-").map((s: string) => s.trim());
+          const artista = partes[0] || "Cali Radio Salsa";
+          const cancion = partes[1] || "En Vivo";
+
+          if (fullTitle !== metadata.title + " - " + metadata.artist) {
+            let cover = FALLBACK_COVER_URL;
+            if (partes.length >= 2 && API_KEY_LASTFM) {
+              try {
+                const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${API_KEY_LASTFM}&artist=${encodeURIComponent(artista)}&track=${encodeURIComponent(cancion)}&format=json`);
+                if (!res.ok) throw new Error('Last.fm API error');
+                const data = await res.json();
+                const imgUrl = data.track?.album?.image?.find((i: any) => i.size === "extralarge")?.["#text"];
+                if (imgUrl && imgUrl !== "") cover = imgUrl;
+              } catch (err) { 
+                console.warn('Failed to fetch cover art:', err);
+                cover = FALLBACK_COVER_URL; 
+              }
+            }
+            const newSong = { id: Date.now().toString(), title: cancion, artist: artista, coverUrl: cover, timestamp: Date.now() };
+            setMetadata(newSong);
+            setHistory(prev => {
+              const updated = [newSong, ...prev].slice(0, 15);
+              localStorage.setItem("radio_history", JSON.stringify(updated));
+              return updated;
             });
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.metadata = new MediaMetadata({
+                title: cancion, artist: artista, album: 'Mundial de Salsa',
+                artwork: [{ src: cover, sizes: '512x512', type: 'image/webp' }]
+              });
+            }
           }
-        }
-      } catch (err) { console.error("Error metadatos:", err); }
+        } catch (err) { console.error("Error metadatos:", err); }
+      };
     };
-    return () => eventSource.close();
+
+    connectEventSource();
+
+    return () => {
+      clearTimeout(reconnectTimeout);
+      eventSource?.close();
+    };
   }, [metadata.title]);
 
   useEffect(() => {
@@ -152,21 +184,28 @@ export function Player() {
     return () => clearInterval(timer);
   }, [alarms, isPlaying]);
 
-  const handleTogglePlay = () => {
+  const handleTogglePlay = async () => {
     if (!audioRef.current) return;
+    
     if (isPlaying) {
       audioRef.current.pause();
     } else { 
-      if (!audioContext) {
-        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-        const context = new AudioCtx();
-        const src = context.createMediaElementSource(audioRef.current);
-        const an = context.createAnalyser();
-        an.fftSize = 64; 
-        src.connect(an); an.connect(context.destination);
-        setAudioContext(context); setAnalyser(an);
+      try {
+        if (!audioContext) {
+          const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+          const context = new AudioCtx();
+          const src = context.createMediaElementSource(audioRef.current);
+          const an = context.createAnalyser();
+          an.fftSize = 64; 
+          src.connect(an); an.connect(context.destination);
+          setAudioContext(context); setAnalyser(an);
+        }
+        await audioRef.current.play();
+      } catch (error) {
+        console.error('Error playing audio:', error);
+        // Show user-friendly error message
+        alert('No se pudo reproducir el audio. Verifica tu conexión a internet.');
       }
-      audioRef.current.play().catch(() => {}); 
     }
     setIsPlaying(!isPlaying);
   };
