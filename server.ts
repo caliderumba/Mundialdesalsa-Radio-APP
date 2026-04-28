@@ -6,12 +6,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import { getSalsaTrivia } from './services/geminiService';
+import Database from 'better-sqlite3';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BPzkZUS_fjliAVsX9WeRhmoA1lpcDgPzgtxrW_y1PIkJbLg0yJOobmWKJNQMftxVypjdB53z6FKp2c-SxB3I1FY';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'KVXvkbpGdpbr-AzyZcGFVOyLN-D5KV7eXdr64DMN32s';
+// Validate VAPID keys - require them in production
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+
+if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  throw new Error('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set in environment variables');
+}
 
 webpush.setVapidDetails(
   'mailto:info@mundialdesalsa.com',
@@ -19,23 +29,69 @@ webpush.setVapidDetails(
   VAPID_PRIVATE_KEY
 );
 
+// Initialize SQLite database for persistent storage
+const db = new Database('subscriptions.db');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT UNIQUE NOT NULL,
+    keys_p256dh TEXT NOT NULL,
+    keys_auth TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_notification DATETIME
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0
+  )
+`);
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(bodyParser.json());
-
-  let subscriptions: any[] = [];
+  app.use(bodyParser.json({ limit: '1mb' }));
 
   // --- 1. RUTAS DE LA API (Prioridad Máxima) ---
   
+  // Validate subscription input schema
+  function validateSubscription(sub: any): boolean {
+    if (!sub || typeof sub !== 'object') return false;
+    if (typeof sub.endpoint !== 'string' || !sub.endpoint.startsWith('http')) return false;
+    if (!sub.keys || typeof sub.keys !== 'object') return false;
+    if (typeof sub.keys.p256dh !== 'string' || sub.keys.p256dh.length < 10) return false;
+    if (typeof sub.keys.auth !== 'string' || sub.keys.auth.length < 10) return false;
+    return true;
+  }
+
   app.post('/api/subscribe', (req, res) => {
     const subscription = req.body;
-    const exists = subscriptions.find(s => s.endpoint === subscription.endpoint);
-    if (!exists) {
-      subscriptions.push(subscription);
+    
+    // Input validation
+    if (!validateSubscription(subscription)) {
+      return res.status(400).json({ error: 'Invalid subscription format' });
     }
-    res.status(201).json({ message: 'Subscribed successfully' });
+    
+    try {
+      // Insert or ignore duplicate subscriptions in database
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO subscriptions (endpoint, keys_p256dh, keys_auth)
+        VALUES (?, ?, ?)
+      `);
+      stmt.run(subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth);
+      
+      res.status(201).json({ message: 'Subscribed successfully' });
+    } catch (error) {
+      console.error('Database error:', error);
+      res.status(500).json({ error: 'Failed to save subscription' });
+    }
   });
 
   app.get('/api/vapid-public-key', (req, res) => {
@@ -56,7 +112,7 @@ async function startServer() {
 
   // --- 2. FUNCIÓN DE NOTIFICACIONES Y CRON JOB ---
 
-  const broadcastNotification = (title: string, body: string) => {
+  const broadcastNotification = async (title: string, body: string) => {
     const payload = JSON.stringify({ 
       title, 
       body, 
@@ -65,24 +121,61 @@ async function startServer() {
       data: { url: 'https://radio.mundialdesalsa.com' }
     });
 
-    subscriptions.forEach(subscription => {
-      webpush.sendNotification(subscription, payload).catch(err => {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          subscriptions = subscriptions.filter(s => s.endpoint !== subscription.endpoint);
+    // Get all subscriptions from database
+    const stmt = db.prepare('SELECT * FROM subscriptions');
+    const subscriptions = stmt.all() as any[];
+    
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const sub of subscriptions) {
+      const subscription = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.keys_p256dh,
+          auth: sub.keys_auth
         }
-      });
-    });
+      };
+      
+      try {
+        await webpush.sendNotification(subscription, payload);
+        successCount++;
+        // Update last_notification timestamp
+        db.prepare('UPDATE subscriptions SET last_notification = CURRENT_TIMESTAMP WHERE id = ?').run(sub.id);
+      } catch (err: any) {
+        failureCount++;
+        // Remove invalid subscriptions (410 Gone or 404 Not Found)
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          db.prepare('DELETE FROM subscriptions WHERE id = ?').run(sub.id);
+        }
+      }
+    }
+
+    // Log notification results
+    db.prepare(`
+      INSERT INTO notifications_log (title, body, success_count, failure_count)
+      VALUES (?, ?, ?, ?)
+    `).run(title, body, successCount, failureCount);
+
+    console.log(`[NOTIFICATION] "${title}": ${successCount} sent, ${failureCount} failed`);
   };
 
   cron.schedule('0 * * * *', async () => {
     console.log('[CRON] Iniciando generación de trivia horaria...');
     try {
       const triviaFresh = await getSalsaTrivia();
-      broadcastNotification("¡Sabías que de la Salsa!", triviaFresh);
+      await broadcastNotification("¡Sabías que de la Salsa!", triviaFresh);
       console.log('[CRON] Notificación horaria enviada con éxito.');
     } catch (error) {
       console.error('[CRON] Error enviando trivia horaria:', error);
     }
+  });
+
+  // Graceful shutdown for database
+  process.on('SIGINT', () => {
+    console.log('Closing database...');
+    db.close();
+    process.exit(0);
   });
 
   // --- 3. MIDDLEWARE DE VITE / PRODUCCIÓN (Al Final) ---

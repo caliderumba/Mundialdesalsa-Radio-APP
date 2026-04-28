@@ -1,8 +1,15 @@
+```
+# Environment
+.env.local
+.env.*
+
+# Dependencies
 node_modules/
-build/
-dist/
-coverage/
-.DS_Store
+
+# Logs and temp files
 *.log
-.env*
-!.env.example
+*.tmp
+
+# Editors
+.vscode/
+```
